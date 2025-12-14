@@ -73,11 +73,13 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       let compareResult: CompareResult | null = null;
       let lastError: string | null = null;
 
+      const bundleId = platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+
       for (let attempt = 0; attempt <= config.retryCount; attempt++) {
         try {
           await server.mountComponent(component);
           await new Promise((r) => setTimeout(r, config.defaultWaitMs));
-          await takeScreenshot(platform, latestPath);
+          await takeScreenshot(platform, latestPath, bundleId);
           await server.unmountComponent();
 
           compareResult = await compareImages(

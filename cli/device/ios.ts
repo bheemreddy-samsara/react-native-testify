@@ -64,23 +64,80 @@ export async function launchSimulator(
   platform: string,
 ): Promise<void> {
   if (platform === 'ios') {
-    await bootSimulator(config.ios.simulator);
-    // The app should already be built and installed - just launch
-    // In real usage, you'd use: xcrun simctl launch <udid> <bundle-id>
+    const deviceId = await bootSimulator(config.ios.simulator);
+
+    // Get bundle ID from installed apps or use default
+    const bundleId =
+      config.ios.bundleId || 'org.reactjs.native.example.TestifyExample';
+
+    // Terminate any existing instance first
+    try {
+      await exec('xcrun', ['simctl', 'terminate', deviceId, bundleId]);
+    } catch {
+      // App might not be running, ignore
+    }
+
+    // Launch the app
+    await exec('xcrun', ['simctl', 'launch', deviceId, bundleId]);
+
+    // Wait for app to be ready
+    await new Promise((r) => setTimeout(r, 2000));
   } else {
     // Android: adb -s <emulator> shell am start -n <package>/<activity>
+    const packageName = config.android.packageName || 'com.testifyexample';
+    await exec('adb', [
+      'shell',
+      'am',
+      'start',
+      '-n',
+      `${packageName}/.MainActivity`,
+    ]);
+    await new Promise((r) => setTimeout(r, 2000));
   }
 }
+
+// Cache the device ID to avoid repeated lookups
+let cachedDeviceId: string | null = null;
 
 export async function takeScreenshot(
   platform: string,
   outputPath: string,
+  bundleId?: string,
+  deviceName?: string,
 ): Promise<void> {
   if (platform === 'ios') {
-    // Capture screenshot from booted simulator
-    await exec('xcrun', ['simctl', 'io', 'booted', 'screenshot', outputPath]);
+    // Get specific device ID if we have a device name
+    let deviceId = cachedDeviceId;
+    if (!deviceId && deviceName) {
+      deviceId = await getDeviceId(deviceName);
+      cachedDeviceId = deviceId;
+    }
+    const target = deviceId || 'booted';
+
+    // Bring app to foreground before screenshot
+    if (bundleId) {
+      try {
+        await exec('xcrun', ['simctl', 'launch', target, bundleId]);
+        await new Promise((r) => setTimeout(r, 500));
+      } catch {
+        // App might already be running
+      }
+    }
+
+    // Capture screenshot from specific simulator
+    await exec('xcrun', ['simctl', 'io', target, 'screenshot', outputPath]);
   } else {
-    // Android: adb exec-out screencap -p > output.png
+    // Android: bring app to foreground and screenshot
+    if (bundleId) {
+      await exec('adb', [
+        'shell',
+        'am',
+        'start',
+        '-n',
+        `${bundleId}/.MainActivity`,
+      ]);
+      await new Promise((r) => setTimeout(r, 500));
+    }
     await exec('adb', ['exec-out', 'screencap', '-p', '>', outputPath]);
   }
 }

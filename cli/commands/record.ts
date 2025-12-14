@@ -41,7 +41,8 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
 
       // Take screenshot
       const screenshotPath = path.join(baselineDir, `${component}.png`);
-      await takeScreenshot(platform, screenshotPath);
+      const bundleId = platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+      await takeScreenshot(platform, screenshotPath, bundleId);
 
       await server.unmountComponent();
     }

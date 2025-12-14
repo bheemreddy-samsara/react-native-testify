@@ -11,6 +11,7 @@ const IosConfigSchema = z.object({
   simulator: z.string().default('iPhone 15 Pro'),
   scheme: z.string().optional(),
   workspace: z.string().optional(),
+  bundleId: z.string().optional(),
   viewport: ViewportSchema.optional(),
 });
 

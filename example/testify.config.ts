@@ -1,4 +1,4 @@
-import {defineConfig} from 'react-native-testify';
+import {defineConfig} from '../cli/define-config';
 
 export default defineConfig({
   entry: './index.testify.js',
@@ -10,6 +10,7 @@ export default defineConfig({
 
   ios: {
     simulator: 'iPhone 16 Pro',
+    bundleId: 'org.reactjs.native.example.TestifyExample',
   },
 
   android: {
