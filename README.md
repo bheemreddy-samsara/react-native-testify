@@ -169,23 +169,99 @@ android: {
 
 ## How It Works
 
-1. **Testify Harness** - A minimal React Native app that connects to the CLI via WebSocket
-2. **Component Registry** - Define components to test with optional wrappers and wait conditions
-3. **CLI Server** - Orchestrates component mounting, screenshot capture, and image comparison
-4. **Visual Diffing** - Uses pixelmatch to compare screenshots against baselines
+### Architecture
 
 ```
-┌─────────────────┐     WebSocket      ┌─────────────────┐
-│   iOS/Android   │ ◄──────────────────►│    CLI Server   │
-│   Simulator     │                     │                 │
-│                 │  mount(component)   │  testify test   │
-│  TestifyApp     │ ◄──────────────────│                 │
-│                 │                     │  Screenshot     │
-│  ┌───────────┐  │  mounted            │  Compare        │
-│  │ Component │  │ ────────────────────►│  Report        │
-│  └───────────┘  │                     │                 │
-└─────────────────┘                     └─────────────────┘
+┌─────────────────────────┐         WebSocket          ┌─────────────────────────┐
+│      iOS Simulator      │ ◄────────────────────────► │      CLI Server         │
+│                         │        port 8089           │                         │
+│  ┌───────────────────┐  │                            │  testify record --ios   │
+│  │   TestifyApp      │  │   1. connect               │  testify test --ios     │
+│  │                   │  │ ◄─────────────────────────│                         │
+│  │  - IdleScreen     │  │   2. ready                 │                         │
+│  │  - Registry       │  │ ─────────────────────────►│                         │
+│  │  - Connection     │  │                            │                         │
+│  └───────────────────┘  │   3. list                  │                         │
+│                         │ ◄─────────────────────────│                         │
+│                         │   4. components[]          │                         │
+│                         │ ─────────────────────────►│                         │
+│                         │                            │                         │
+│  ┌───────────────────┐  │   5. mount(Button_Primary) │                         │
+│  │  Button_Primary   │  │ ◄─────────────────────────│                         │
+│  │                   │  │   6. mounted               │                         │
+│  └───────────────────┘  │ ─────────────────────────►│                         │
+│                         │                            │  7. xcrun simctl        │
+│                         │                            │     screenshot          │
+│                         │   8. unmount               │                         │
+│  ┌───────────────────┐  │ ◄─────────────────────────│                         │
+│  │   IdleScreen      │  │   9. unmounted             │                         │
+│  └───────────────────┘  │ ─────────────────────────►│                         │
+│                         │                            │  10. Compare with       │
+│                         │                            │      baseline           │
+└─────────────────────────┘                            └─────────────────────────┘
 ```
+
+### Step-by-Step Flow
+
+**1. Start the app with Testify harness:**
+```bash
+# Metro bundler serves index.js which loads TestifyApp
+cd your-app && npx react-native start
+```
+
+**2. App shows IdleScreen (Disconnected):**
+- WebSocket client tries to connect to `ws://localhost:8089`
+- Shows "Attempting to connect on port 8089"
+
+**3. Start CLI server:**
+```bash
+npx testify record --ios   # Record baselines
+# or
+npx testify test --ios     # Run tests
+```
+
+**4. Connection established:**
+- Server logs: `[Server] Client connected`
+- App sends: `{ type: "ready" }`
+- App shows "Connected" status
+
+**5. Server requests component list:**
+- Server sends: `{ type: "list" }`
+- App responds: `{ type: "components", components: ["Button_Primary", ...] }`
+
+**6. For each component:**
+```
+Server sends:  { type: "mount", component: "Button_Primary" }
+     ↓
+App renders:   <Button_Primary /> (from registry)
+     ↓
+App waits:     300ms (configurable waitMs)
+     ↓
+App sends:     { type: "mounted", component: "Button_Primary" }
+     ↓
+Server runs:   xcrun simctl io booted screenshot /path/to/screenshot.png
+     ↓
+Server sends:  { type: "unmount" }
+     ↓
+App returns:   <IdleScreen />
+     ↓
+App sends:     { type: "unmounted" }
+```
+
+**7. After all components:**
+- Compare screenshots against baselines using pixelmatch
+- Report pass/fail for each component
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/TestifyApp.tsx` | Harness that mounts/unmounts components |
+| `src/connection.ts` | WebSocket client (app side) |
+| `src/registry.ts` | Component registry with wrappers/waitFor |
+| `cli/server.ts` | WebSocket server (CLI side) |
+| `cli/device/ios.ts` | `xcrun simctl` commands for screenshots |
+| `cli/compare.ts` | pixelmatch image diffing |
 
 ## Git LFS for Baselines
 
