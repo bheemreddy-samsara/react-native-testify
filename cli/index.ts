@@ -22,8 +22,13 @@ async function main() {
     }
 
     case 'test': {
-      const { runTest } = await import('./commands/test');
-      await runTest(config, args.slice(1));
+      if (args.includes('--parallel') || args.includes('--all')) {
+        const { runParallelTest } = await import('./commands/test-parallel');
+        await runParallelTest(config, args.slice(1));
+      } else {
+        const { runTest } = await import('./commands/test');
+        await runTest(config, args.slice(1));
+      }
       break;
     }
 
@@ -81,6 +86,8 @@ Commands:
 Options:
   --ios             Target iOS simulator
   --android         Target Android emulator
+  --all             Target both iOS and Android (parallel)
+  --parallel        Run tests in parallel on multiple devices
   --config <path>   Path to config file
   --help, -h        Show this help
   --version, -v     Show version
@@ -89,6 +96,8 @@ Examples:
   testify init
   testify record --ios
   testify test --ios
+  testify test --all              # Parallel iOS + Android
+  testify test --parallel --ios --android
   testify update Button_Primary --ios
 `);
 }

@@ -17,7 +17,12 @@ export interface TestifyConnection {
   isConnected(): boolean;
 }
 
-export function createConnection(port: number): TestifyConnection {
+export type Platform = 'ios' | 'android';
+
+export function createConnection(
+  port: number,
+  platform: Platform = 'ios',
+): TestifyConnection {
   let ws: WebSocket | null = null;
   let messageHandler: MessageHandler | null = null;
   let statusHandler: StatusHandler | null = null;
@@ -38,13 +43,13 @@ export function createConnection(port: number): TestifyConnection {
     setStatus('connecting');
 
     try {
-      ws = new WebSocket(`ws://localhost:${port}`);
+      ws = new WebSocket(`ws://localhost:${port}?platform=${platform}`);
 
       ws.onopen = () => {
         connected = true;
         setStatus('connected');
-        console.log('[Testify] Connected to CLI');
-        send({ type: 'ready' });
+        console.log(`[Testify] Connected to CLI (${platform})`);
+        send({ type: 'ready', platform });
       };
 
       ws.onclose = () => {

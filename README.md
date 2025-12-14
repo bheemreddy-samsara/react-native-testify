@@ -77,8 +77,54 @@ npx testify record --ios
 # Run visual regression tests
 npx testify test --ios
 
+# Run parallel tests on iOS + Android simultaneously
+npx testify test --all
+
 # Update specific baselines
 npx testify update Button_Primary --ios
+```
+
+## Parallel Testing (iOS + Android)
+
+Run visual tests on both platforms simultaneously:
+
+```bash
+# Test on both iOS simulator and Android emulator
+npx testify test --all
+
+# Or explicitly specify platforms
+npx testify test --parallel --ios --android
+```
+
+This launches both devices, connects both apps to the server, and runs tests in parallel:
+
+```
+┌─ Button_Primary
+│  [ios] ✓ Pass
+│  [android] ✓ Pass
+└─
+
+┌─ Card_Simple
+│  [ios] ✓ Pass
+│  [android] ✗ 0.42% diff
+└─
+
+══════════════════════════════════════════════════
+Results: 3 passed, 1 failed
+  [ios] 2 passed, 0 failed
+  [android] 1 passed, 1 failed
+══════════════════════════════════════════════════
+```
+
+Baselines are stored per-platform:
+```
+testify/baselines/
+├── ios/
+│   ├── Button_Primary.png
+│   └── Card_Simple.png
+└── android/
+    ├── Button_Primary.png
+    └── Card_Simple.png
 ```
 
 ## Registry API
@@ -173,26 +219,33 @@ android: {
 
 ```mermaid
 sequenceDiagram
-    participant App as iOS/Android Simulator<br/>TestifyApp
-    participant CLI as CLI Server<br/>testify test --ios
+    participant iOS as iOS Simulator<br/>TestifyApp
+    participant CLI as CLI Server<br/>testify test --all
+    participant Android as Android Emulator<br/>TestifyApp
 
-    App->>CLI: 1. WebSocket connect (port 8089)
-    App->>CLI: 2. { type: "ready" }
+    iOS->>CLI: 1. WebSocket connect (?platform=ios)
+    Android->>CLI: 1. WebSocket connect (?platform=android)
+    iOS->>CLI: 2. { type: "ready", platform: "ios" }
+    Android->>CLI: 2. { type: "ready", platform: "android" }
     
-    CLI->>App: 3. { type: "list" }
-    App->>CLI: 4. { type: "components", components: [...] }
+    CLI->>iOS: 3. { type: "list" }
+    iOS->>CLI: 4. { type: "components", components: [...] }
     
-    loop For each component
-        CLI->>App: 5. { type: "mount", component: "Button_Primary" }
-        Note over App: Render component<br/>Wait for stabilization
-        App->>CLI: 6. { type: "mounted" }
-        Note over CLI: xcrun simctl screenshot
-        CLI->>App: 7. { type: "unmount" }
-        Note over App: Return to IdleScreen
-        App->>CLI: 8. { type: "unmounted" }
+    loop For each component (parallel on both devices)
+        CLI->>iOS: 5. { type: "mount", component: "Button_Primary" }
+        CLI->>Android: 5. { type: "mount", component: "Button_Primary" }
+        Note over iOS: Render & wait
+        Note over Android: Render & wait
+        iOS->>CLI: 6. { type: "mounted" }
+        Android->>CLI: 6. { type: "mounted" }
+        Note over CLI: Screenshots (parallel):<br/>xcrun simctl io (iOS)<br/>adb exec-out screencap (Android)
+        CLI->>iOS: 7. { type: "unmount" }
+        CLI->>Android: 7. { type: "unmount" }
+        iOS->>CLI: 8. { type: "unmounted" }
+        Android->>CLI: 8. { type: "unmounted" }
     end
     
-    Note over CLI: Compare screenshots<br/>with baselines (pixelmatch)
+    Note over CLI: Compare screenshots<br/>per-platform baselines
 ```
 
 ### Step-by-Step Flow

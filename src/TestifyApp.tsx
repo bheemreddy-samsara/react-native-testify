@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { IdleScreen } from './IdleScreen';
-import { type TestifyMessage, createConnection } from './connection';
+import {
+  type TestifyMessage,
+  type Platform as TestifyPlatform,
+  createConnection,
+} from './connection';
 import type { Registry, ResolvedComponent } from './registry';
 
 interface TestifyAppProps {
   registry: Registry;
   port?: number;
+  platform?: TestifyPlatform;
 }
 
 interface MountState {
@@ -16,12 +21,20 @@ interface MountState {
   error?: string;
 }
 
-export function TestifyApp({ registry, port = 8089 }: TestifyAppProps) {
+export function TestifyApp({
+  registry,
+  port = 8089,
+  platform,
+}: TestifyAppProps) {
+  // Auto-detect platform if not provided
+  const detectedPlatform: TestifyPlatform =
+    platform || (Platform.OS === 'ios' ? 'ios' : 'android');
+
   const [mountState, setMountState] = useState<MountState | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'disconnected'
   >('connecting');
-  const connectionRef = useRef(createConnection(port));
+  const connectionRef = useRef(createConnection(port, detectedPlatform));
 
   const handleMount = useCallback(
     async (componentName: string) => {

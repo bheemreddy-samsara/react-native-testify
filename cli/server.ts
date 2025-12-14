@@ -9,8 +9,19 @@ interface TestifyServer {
   unmountComponent(): Promise<void>;
 }
 
+interface Client {
+  ws: unknown;
+  platform: 'ios' | 'android' | 'unknown';
+  isReady: boolean;
+  readyResolver: (() => void) | null;
+  messageHandlers: Map<string, (data: Record<string, unknown>) => void>;
+}
+
 export function createServer(port: number): TestifyServer {
   let server: unknown = null;
+  const clients: Map<string, Client> = new Map();
+
+  // Legacy single-client support
   let connectedClient: unknown = null;
   let isReady = false;
   let readyResolver: (() => void) | null = null;

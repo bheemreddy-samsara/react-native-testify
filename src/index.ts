@@ -9,7 +9,7 @@ export type {
   RegistryOptions,
   WrapperComponent,
 } from './registry';
-export type { ConnectionStatus } from './connection';
+export type { ConnectionStatus, Platform } from './connection';
 
 // Config helper for typed config files
 export function defineConfig(config: {
