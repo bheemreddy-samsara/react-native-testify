@@ -3,6 +3,10 @@ import * as path from 'node:path';
 import { type CompareResult, compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
 import { launchSimulator, takeScreenshot } from '../device/ios';
+import {
+  type TestResult as ReportTestResult,
+  generateHtmlReport,
+} from '../report';
 import { createServer } from '../server';
 
 interface TestResult {
@@ -10,6 +14,9 @@ interface TestResult {
   passed: boolean;
   diffPercentage?: number;
   error?: string;
+  baselinePath?: string;
+  latestPath?: string;
+  diffPath?: string;
 }
 
 export async function runTest(config: TestifyConfig, args: string[]) {
@@ -54,6 +61,9 @@ export async function runTest(config: TestifyConfig, args: string[]) {
           component,
           passed: false,
           error: 'No baseline found. Run `testify record` first.',
+          baselinePath,
+          latestPath,
+          diffPath,
         });
         console.log(`  ✗ ${component} - No baseline`);
         continue;
@@ -90,13 +100,22 @@ export async function runTest(config: TestifyConfig, args: string[]) {
           component,
           passed: false,
           error: lastError || 'Unknown error',
+          baselinePath,
+          latestPath,
+          diffPath,
         });
         console.log(`  ✗ ${component} - ${lastError}`);
         continue;
       }
 
       if (compareResult.match) {
-        results.push({ component, passed: true, diffPercentage: 0 });
+        results.push({
+          component,
+          passed: true,
+          diffPercentage: 0,
+          baselinePath,
+          latestPath,
+        });
         console.log(`  ✓ ${component}`);
         // Clean up diff if passed
         if (fs.existsSync(diffPath)) fs.unlinkSync(diffPath);
@@ -105,6 +124,9 @@ export async function runTest(config: TestifyConfig, args: string[]) {
           component,
           passed: false,
           diffPercentage: compareResult.diffPercentage,
+          baselinePath,
+          latestPath,
+          diffPath,
         });
         console.log(
           `  ✗ ${component} - ${(compareResult.diffPercentage * 100).toFixed(2)}% diff`,
@@ -119,8 +141,22 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     console.log(`\n${'─'.repeat(40)}`);
     console.log(`Results: ${passed} passed, ${failed} failed`);
 
+    // Generate HTML report
+    const reportResults: ReportTestResult[] = results.map((r) => ({
+      ...r,
+      platform,
+    }));
+
+    const reportPath = generateHtmlReport({
+      outputDir: config.baselines,
+      results: reportResults,
+      threshold: config.threshold,
+    });
+
+    console.log(`\nReport: file://${reportPath}`);
+
     if (failed > 0) {
-      console.log(`\nDiff images saved to: ${diffDir}`);
+      console.log(`Diff images saved to: ${diffDir}`);
       process.exit(1);
     }
   } finally {

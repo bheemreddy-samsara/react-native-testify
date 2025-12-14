@@ -4,16 +4,9 @@ import { compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
 import { launchSimulator, takeScreenshot } from '../device/ios';
 import { createParallelServer } from '../parallel-server';
+import { type TestResult, generateHtmlReport } from '../report';
 
 type Platform = 'ios' | 'android';
-
-interface TestResult {
-  component: string;
-  platform: Platform;
-  passed: boolean;
-  diffPercentage?: number;
-  error?: string;
-}
 
 export async function runParallelTest(config: TestifyConfig, args: string[]) {
   const platforms: Platform[] = [];
@@ -78,6 +71,9 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
               platform,
               passed: false,
               error: 'No baseline',
+              baselinePath,
+              latestPath,
+              diffPath,
             });
             console.log(`│  [${platform}] ✗ No baseline`);
             return;
@@ -96,6 +92,8 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
               platform,
               passed: true,
               diffPercentage: 0,
+              baselinePath,
+              latestPath,
             });
             console.log(`│  [${platform}] ✓ Pass`);
             if (fs.existsSync(diffPath)) fs.unlinkSync(diffPath);
@@ -105,6 +103,9 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
               platform,
               passed: false,
               diffPercentage: compareResult.diffPercentage,
+              baselinePath,
+              latestPath,
+              diffPath,
             });
             console.log(
               `│  [${platform}] ✗ ${(compareResult.diffPercentage * 100).toFixed(2)}% diff`,
@@ -112,7 +113,15 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
           }
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
-          results.push({ component, platform, passed: false, error: errorMsg });
+          results.push({
+            component,
+            platform,
+            passed: false,
+            error: errorMsg,
+            baselinePath,
+            latestPath,
+            diffPath,
+          });
           console.log(`│  [${platform}] ✗ ${errorMsg}`);
         }
       });
@@ -141,6 +150,15 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
       );
     }
     console.log('═'.repeat(50));
+
+    // Generate HTML report
+    const reportPath = generateHtmlReport({
+      outputDir: config.baselines,
+      results,
+      threshold: config.threshold,
+    });
+
+    console.log(`\nReport: file://${reportPath}`);
 
     if (failed > 0) {
       process.exit(1);
