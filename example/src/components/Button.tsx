@@ -14,7 +14,7 @@ interface ButtonProps {
 }
 
 const variantStyles: Record<string, ViewStyle> = {
-  primary: {backgroundColor: '#007AFF'},
+  primary: {backgroundColor: '#E63946'}, // Changed from #007AFF - visual regression!
   secondary: {backgroundColor: '#5856D6'},
   danger: {backgroundColor: '#FF3B30'},
 };

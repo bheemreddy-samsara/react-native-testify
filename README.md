@@ -12,6 +12,16 @@ Component-level visual regression testing for React Native. Mount components in 
 - **Retry Logic** - Configurable retries for flaky renders
 - **CI Ready** - Works with iOS Simulator and Android Emulator in headless mode
 
+## Visual Regression in Action
+
+See how testify catches a subtle color change (from `#007AFF` to `#0056B3`):
+
+| Baseline | Changed | Diff |
+|----------|---------|------|
+| ![Baseline](docs/demo/baseline.png) | ![Changed](docs/demo/changed.png) | ![Diff](docs/demo/diff.png) |
+
+The red pixels in the diff image highlight exactly where the UI changed. [See full demo →](docs/VISUAL_REGRESSION_DEMO.md)
+
 ## Installation
 
 ```bash
