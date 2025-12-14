@@ -171,34 +171,28 @@ android: {
 
 ### Architecture
 
-```
-┌─────────────────────────┐         WebSocket          ┌─────────────────────────┐
-│      iOS Simulator      │ ◄────────────────────────► │      CLI Server         │
-│                         │        port 8089           │                         │
-│  ┌───────────────────┐  │                            │  testify record --ios   │
-│  │   TestifyApp      │  │   1. connect               │  testify test --ios     │
-│  │                   │  │ ◄─────────────────────────│                         │
-│  │  - IdleScreen     │  │   2. ready                 │                         │
-│  │  - Registry       │  │ ─────────────────────────►│                         │
-│  │  - Connection     │  │                            │                         │
-│  └───────────────────┘  │   3. list                  │                         │
-│                         │ ◄─────────────────────────│                         │
-│                         │   4. components[]          │                         │
-│                         │ ─────────────────────────►│                         │
-│                         │                            │                         │
-│  ┌───────────────────┐  │   5. mount(Button_Primary) │                         │
-│  │  Button_Primary   │  │ ◄─────────────────────────│                         │
-│  │                   │  │   6. mounted               │                         │
-│  └───────────────────┘  │ ─────────────────────────►│                         │
-│                         │                            │  7. xcrun simctl        │
-│                         │                            │     screenshot          │
-│                         │   8. unmount               │                         │
-│  ┌───────────────────┐  │ ◄─────────────────────────│                         │
-│  │   IdleScreen      │  │   9. unmounted             │                         │
-│  └───────────────────┘  │ ─────────────────────────►│                         │
-│                         │                            │  10. Compare with       │
-│                         │                            │      baseline           │
-└─────────────────────────┘                            └─────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant App as iOS/Android Simulator<br/>TestifyApp
+    participant CLI as CLI Server<br/>testify test --ios
+
+    App->>CLI: 1. WebSocket connect (port 8089)
+    App->>CLI: 2. { type: "ready" }
+    
+    CLI->>App: 3. { type: "list" }
+    App->>CLI: 4. { type: "components", components: [...] }
+    
+    loop For each component
+        CLI->>App: 5. { type: "mount", component: "Button_Primary" }
+        Note over App: Render component<br/>Wait for stabilization
+        App->>CLI: 6. { type: "mounted" }
+        Note over CLI: xcrun simctl screenshot
+        CLI->>App: 7. { type: "unmount" }
+        Note over App: Return to IdleScreen
+        App->>CLI: 8. { type: "unmounted" }
+    end
+    
+    Note over CLI: Compare screenshots<br/>with baselines (pixelmatch)
 ```
 
 ### Step-by-Step Flow
