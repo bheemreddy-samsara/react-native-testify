@@ -1,5 +1,6 @@
 import type { TestifyConfig } from '../config';
-import { buildAndroid, buildIos, startMetro } from '../device/ios';
+import { buildAndroid } from '../device/android';
+import { buildIos } from '../device/ios';
 
 export async function runBuild(config: TestifyConfig, args: string[]) {
   const platform = args.includes('--android') ? 'android' : 'ios';
@@ -9,7 +10,7 @@ export async function runBuild(config: TestifyConfig, args: string[]) {
   if (platform === 'ios') {
     await buildIos(config);
   } else {
-    await buildAndroid();
+    await buildAndroid(config);
   }
 
   console.log('Build complete!');

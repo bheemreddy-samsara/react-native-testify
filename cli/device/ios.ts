@@ -209,10 +209,6 @@ export async function buildIos(config: TestifyConfig): Promise<void> {
   await exec('xcodebuild', args);
 }
 
-export async function buildAndroid(): Promise<void> {
-  await exec('./gradlew', ['assembleDebug']);
-}
-
 export async function startMetro(entryFile: string): Promise<void> {
   spawn('npx', ['react-native', 'start', '--entry', entryFile], {
     stdio: 'inherit',

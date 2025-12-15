@@ -262,6 +262,8 @@ ios: {
 android: {
   emulator: 'Pixel_7_API_34',
   packageName: 'com.yourapp',
+  projectDir: 'android',
+  gradleTask: 'assembleDebug',
   viewport: { width: 412, height: 915 },
 }
 ```

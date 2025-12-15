@@ -1,9 +1,19 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import type { TestifyConfig } from '../config';
 
-async function exec(cmd: string, args: string[]): Promise<string> {
+interface ExecOptions {
+  cwd?: string;
+}
+
+async function exec(
+  cmd: string,
+  args: string[],
+  options: ExecOptions = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args);
+    const proc = spawn(cmd, args, { cwd: options.cwd });
     let stdout = '';
     let stderr = '';
 
@@ -46,6 +56,51 @@ async function execBinary(cmd: string, args: string[]): Promise<Buffer> {
 }
 
 let activeDemoMode = false;
+
+function detectAndroidProjectDir(): string {
+  const cwd = process.cwd();
+  const gradlewName = process.platform === 'win32' ? 'gradlew.bat' : 'gradlew';
+  const androidDir = path.join(cwd, 'android');
+
+  if (fs.existsSync(path.join(androidDir, gradlewName))) {
+    return androidDir;
+  }
+
+  if (fs.existsSync(path.join(cwd, gradlewName))) {
+    return cwd;
+  }
+
+  if (fs.existsSync(androidDir)) {
+    return androidDir;
+  }
+
+  return cwd;
+}
+
+export async function buildAndroid(config: TestifyConfig): Promise<void> {
+  const projectDir = config.android.projectDir
+    ? path.resolve(process.cwd(), config.android.projectDir)
+    : detectAndroidProjectDir();
+
+  const gradleTask = config.android.gradleTask || 'assembleDebug';
+  const gradlewName = process.platform === 'win32' ? 'gradlew.bat' : 'gradlew';
+  const gradlewPath = path.join(projectDir, gradlewName);
+
+  if (!fs.existsSync(gradlewPath)) {
+    const hint = config.android.projectDir
+      ? `android.projectDir is set to ${config.android.projectDir}`
+      : 'Set android.projectDir in your testify config';
+
+    throw new Error(`Gradle wrapper not found: ${gradlewPath}. (${hint})`);
+  }
+
+  if (process.platform === 'win32') {
+    await exec('cmd', ['/c', gradlewPath, gradleTask], { cwd: projectDir });
+    return;
+  }
+
+  await exec(gradlewPath, [gradleTask], { cwd: projectDir });
+}
 
 export async function enterDemoMode(): Promise<boolean> {
   try {

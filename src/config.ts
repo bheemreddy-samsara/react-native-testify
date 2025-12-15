@@ -34,6 +34,8 @@ export type TestifyUserConfig = {
     emulator?: string;
     packageName?: string;
     viewport?: Viewport;
+    projectDir?: string;
+    gradleTask?: string;
   };
   statusBar?: {
     freeze?: boolean;

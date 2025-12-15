@@ -19,6 +19,8 @@ const AndroidConfigSchema = z.object({
   emulator: z.string().default('Pixel_7_API_34'),
   packageName: z.string().optional(),
   viewport: ViewportSchema.optional(),
+  projectDir: z.string().optional(),
+  gradleTask: z.string().default('assembleDebug'),
 });
 
 const StatusBarConfigSchema = z.object({
