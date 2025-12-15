@@ -34,6 +34,20 @@ describe('validateConfig', () => {
     expect(config.android.viewport).toBeUndefined();
   });
 
+  test('returns statusBar defaults', () => {
+    const config = validateConfig({});
+
+    expect(config.statusBar.freeze).toBe(true);
+  });
+
+  test('allows disabling statusBar freeze', () => {
+    const config = validateConfig({
+      statusBar: { freeze: false },
+    });
+
+    expect(config.statusBar.freeze).toBe(false);
+  });
+
   test('merges user config with defaults', () => {
     const config = validateConfig({
       threshold: 0.05,

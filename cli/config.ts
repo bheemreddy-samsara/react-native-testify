@@ -21,6 +21,10 @@ const AndroidConfigSchema = z.object({
   viewport: ViewportSchema.optional(),
 });
 
+const StatusBarConfigSchema = z.object({
+  freeze: z.boolean().default(true),
+});
+
 const TestifyConfigSchema = z.object({
   entry: z.string().default('./index.testify.js'),
   registry: z.string().default('./testify/registry.tsx'),
@@ -32,6 +36,7 @@ const TestifyConfigSchema = z.object({
   retryDelayMs: z.number().int().positive().default(1000),
   ios: IosConfigSchema.default({}),
   android: AndroidConfigSchema.default({}),
+  statusBar: StatusBarConfigSchema.default({}),
   gitLfs: z.boolean().default(false),
   baselineStorage: z.enum(['local', 's3', 'gcs']).default('local'),
 });
@@ -39,6 +44,7 @@ const TestifyConfigSchema = z.object({
 export type TestifyConfig = z.infer<typeof TestifyConfigSchema>;
 export type IosConfig = z.infer<typeof IosConfigSchema>;
 export type AndroidConfig = z.infer<typeof AndroidConfigSchema>;
+export type StatusBarConfig = z.infer<typeof StatusBarConfigSchema>;
 export type Viewport = z.infer<typeof ViewportSchema>;
 
 export function loadConfig(configPath?: string): TestifyConfig {

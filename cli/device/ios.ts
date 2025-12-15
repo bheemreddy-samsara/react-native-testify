@@ -276,8 +276,10 @@ export async function launchSimulator(
   if (platform === 'ios') {
     const deviceId = await bootSimulator(config.ios.simulator);
 
-    // Freeze status bar for consistent screenshots
-    await freezeStatusBar(deviceId);
+    // Freeze status bar for consistent screenshots (if enabled)
+    if (config.statusBar.freeze) {
+      await freezeStatusBar(deviceId);
+    }
 
     // Get bundle ID from installed apps or use default
     const bundleId =
@@ -296,8 +298,10 @@ export async function launchSimulator(
     // Wait for app to be ready
     await new Promise((r) => setTimeout(r, 3000));
   } else {
-    // Enter Android demo mode for consistent status bar
-    await enterAndroidDemoMode();
+    // Enter Android demo mode for consistent status bar (if enabled)
+    if (config.statusBar.freeze) {
+      await enterAndroidDemoMode();
+    }
 
     // Android: adb shell am start -n <package>/<activity>
     const packageName = config.android.packageName || 'com.testifyexample';
