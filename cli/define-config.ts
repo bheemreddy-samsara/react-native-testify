@@ -25,6 +25,14 @@ export function defineConfig(config: {
   statusBar?: {
     freeze?: boolean;
   };
+  polyfills?:
+    | 'auto'
+    | {
+        buffer?: boolean;
+        crypto?: boolean;
+        process?: boolean;
+      };
+  aliases?: 'auto' | Record<string, string>;
 }) {
   return config;
 }

@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { IdleScreen } from './IdleScreen';
 import {
@@ -6,7 +13,7 @@ import {
   type Platform as TestifyPlatform,
   createConnection,
 } from './connection';
-import type { Registry, ResolvedComponent } from './registry';
+import type { ProviderConfig, Registry, ResolvedComponent } from './registry';
 
 interface TestifyAppProps {
   registry: Registry;
@@ -144,15 +151,65 @@ export function TestifyApp({
     );
   }
 
-  // Render the component with wrapper if provided
+  // Get providers and wrap component
+  const providers = registry.getProviders();
   const Wrapper = registry.getWrapper();
+  const storeFactory = registry.getStoreFactory();
+  const shouldIsolate = registry.shouldIsolateStore(mountState.name);
+
+  // Create fresh store if isolation is needed. We intentionally include
+  // mountState.name to ensure a new store when switching between components
+  // that both request isolation, even though the linter considers it unnecessary.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mountState.name needed for store refresh
+  const store = useMemo(() => {
+    if (shouldIsolate && storeFactory) {
+      return storeFactory();
+    }
+    return null;
+  }, [shouldIsolate, storeFactory, mountState.name]);
+
+  // Build provider tree
+  const wrapWithProviders = useCallback(
+    (child: ReactNode): ReactNode => {
+      return providers.reduceRight(
+        (acc: ReactNode, provider: ProviderConfig, index: number) => {
+          const Provider = provider.component;
+          const props = provider.props || {};
+          // If store isolation is active and this provider accepts a store prop, inject it
+          const providerProps =
+            store && 'store' in props ? { ...props, store } : props;
+          // Use component displayName/name with index suffix to avoid key collisions
+          const baseName = Provider.displayName || Provider.name || 'provider';
+          const key = `${baseName}-${index}`;
+          return (
+            <Provider key={key} {...providerProps}>
+              {acc}
+            </Provider>
+          );
+        },
+        child,
+      );
+    },
+    [providers, store],
+  );
+
+  // Render component content
+  const componentContent = <mountState.component.render />;
+
+  // Apply providers
+  const withProviders =
+    providers.length > 0
+      ? wrapWithProviders(componentContent)
+      : componentContent;
+
+  // Apply wrapper
   const content = (
     <View style={styles.container}>
-      <mountState.component.render />
+      {Wrapper ? Wrapper(withProviders) : withProviders}
     </View>
   );
 
-  return Wrapper ? Wrapper(content) : content;
+  return content;
 }
 
 const styles = StyleSheet.create({

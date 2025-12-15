@@ -25,6 +25,20 @@ const StatusBarConfigSchema = z.object({
   freeze: z.boolean().default(true),
 });
 
+const PolyfillsConfigSchema = z.union([
+  z.literal('auto'),
+  z.object({
+    buffer: z.boolean().default(false),
+    crypto: z.boolean().default(false),
+    process: z.boolean().default(false),
+  }),
+]);
+
+const AliasesConfigSchema = z.union([
+  z.literal('auto'),
+  z.record(z.string(), z.string()),
+]);
+
 const TestifyConfigSchema = z.object({
   entry: z.string().default('./index.testify.js'),
   registry: z.string().default('./testify/registry.tsx'),
@@ -37,6 +51,8 @@ const TestifyConfigSchema = z.object({
   ios: IosConfigSchema.default({}),
   android: AndroidConfigSchema.default({}),
   statusBar: StatusBarConfigSchema.default({}),
+  polyfills: PolyfillsConfigSchema.optional(),
+  aliases: AliasesConfigSchema.optional(),
   gitLfs: z.boolean().default(false),
   baselineStorage: z.enum(['local', 's3', 'gcs']).default('local'),
 });
@@ -45,6 +61,8 @@ export type TestifyConfig = z.infer<typeof TestifyConfigSchema>;
 export type IosConfig = z.infer<typeof IosConfigSchema>;
 export type AndroidConfig = z.infer<typeof AndroidConfigSchema>;
 export type StatusBarConfig = z.infer<typeof StatusBarConfigSchema>;
+export type PolyfillsConfig = z.infer<typeof PolyfillsConfigSchema>;
+export type AliasesConfig = z.infer<typeof AliasesConfigSchema>;
 export type Viewport = z.infer<typeof ViewportSchema>;
 
 export function loadConfig(configPath?: string): TestifyConfig {

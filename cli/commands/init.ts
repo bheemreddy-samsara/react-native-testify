@@ -1,5 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { loadConfig } from '../config';
+import { generatePolyfillCode, resolvePolyfills } from '../polyfills';
 
 const CONFIG_TEMPLATE = `import { defineConfig } from 'react-native-testify';
 
@@ -40,7 +42,8 @@ export default createRegistry({
 });
 `;
 
-const ENTRY_TEMPLATE = `import { AppRegistry } from 'react-native';
+function generateEntryTemplate(polyfillCode = ''): string {
+  return `${polyfillCode}import { AppRegistry } from 'react-native';
 import { TestifyApp } from 'react-native-testify';
 import registry from './testify/registry';
 
@@ -51,6 +54,7 @@ const App = () => <TestifyApp registry={registry} />;
 
 AppRegistry.registerComponent(appName, () => App);
 `;
+}
 
 const GITATTRIBUTES_LFS = `# Git LFS for baseline images
 testify/baselines/**/*.png filter=lfs diff=lfs merge=lfs -text
@@ -84,10 +88,22 @@ export async function runInit() {
     console.log('  Skipped: testify/registry.tsx (already exists)');
   }
 
+  // Load config if available to check for polyfills
+  let polyfillCode = '';
+  try {
+    const config = loadConfig();
+    if (config.polyfills) {
+      const resolvedPolyfills = resolvePolyfills(config.polyfills);
+      polyfillCode = generatePolyfillCode(resolvedPolyfills);
+    }
+  } catch {
+    // Config may not exist yet on first init
+  }
+
   // Create entry file
   const entryPath = path.join(cwd, 'index.testify.js');
   if (!fs.existsSync(entryPath)) {
-    fs.writeFileSync(entryPath, ENTRY_TEMPLATE);
+    fs.writeFileSync(entryPath, generateEntryTemplate(polyfillCode));
     console.log('  Created: index.testify.js');
   } else {
     console.log('  Skipped: index.testify.js (already exists)');

@@ -6,10 +6,13 @@ import {
   launchSimulator,
   takeScreenshot,
 } from '../device/ios';
+import { filterComponents, parseFilterArg } from '../filter';
 import { createServer } from '../server';
 
 export async function runRecord(config: TestifyConfig, args: string[]) {
-  const platform = args.includes('--android') ? 'android' : 'ios';
+  const platform: 'ios' | 'android' = args.includes('--android')
+    ? 'android'
+    : 'ios';
 
   console.log(`Recording baselines for ${platform}...`);
 
@@ -30,9 +33,18 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
-    // Get component list from app
-    const components = await server.getComponentList();
-    console.log(`Found ${components.length} components to record`);
+    // Get component list from app and apply filter
+    const allComponents = await server.getComponentList();
+    const filterPattern = parseFilterArg(args);
+    const components = filterComponents(allComponents, filterPattern);
+
+    if (filterPattern) {
+      console.log(
+        `Recording ${components.length} of ${allComponents.length} components (filter: ${filterPattern})`,
+      );
+    } else {
+      console.log(`Found ${components.length} components to record`);
+    }
 
     // Record each component
     for (const component of components) {

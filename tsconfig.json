@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "jsx": "react"
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*", "cli/**/*"],
   "exclude": ["node_modules", "dist", "example"]

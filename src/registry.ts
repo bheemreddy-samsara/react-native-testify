@@ -1,18 +1,28 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { ComponentType, ReactElement, ReactNode } from 'react';
 
 export type ComponentRenderer = () => ReactElement;
 export type WrapperComponent = (children: ReactNode) => ReactElement;
+export type StoreFactory<T = unknown> = () => T;
+
+export interface ProviderConfig {
+  component: ComponentType<{ children: ReactNode }>;
+  props?: Record<string, unknown>;
+}
 
 export interface ComponentConfig {
   render: ComponentRenderer;
-  waitMs?: number; // Per-component render delay
-  waitFor?: () => Promise<void>; // Custom wait condition
+  waitMs?: number;
+  waitFor?: () => Promise<void>;
+  freshStore?: boolean;
 }
 
 export type ComponentEntry = ComponentRenderer | ComponentConfig;
 
 export interface RegistryOptions {
   wrapper?: WrapperComponent;
+  providers?: ProviderConfig[];
+  storeFactory?: StoreFactory;
+  storeIsolation?: boolean;
   defaultWaitMs?: number;
 }
 
@@ -20,6 +30,7 @@ export interface ResolvedComponent {
   render: ComponentRenderer;
   waitMs: number;
   waitFor?: () => Promise<void>;
+  freshStore?: boolean;
 }
 
 export interface Registry {
@@ -29,6 +40,9 @@ export interface Registry {
   list(): string[];
   has(name: string): boolean;
   getWrapper(): WrapperComponent | undefined;
+  getProviders(): ProviderConfig[];
+  getStoreFactory(): StoreFactory | undefined;
+  shouldIsolateStore(componentName?: string): boolean;
 }
 
 function isComponentConfig(entry: ComponentEntry): entry is ComponentConfig {
@@ -55,6 +69,7 @@ export function createRegistry(
           render: entry.render,
           waitMs: entry.waitMs ?? defaultWaitMs,
           waitFor: entry.waitFor,
+          freshStore: entry.freshStore,
         };
       }
 
@@ -74,6 +89,28 @@ export function createRegistry(
 
     getWrapper() {
       return options.wrapper;
+    },
+
+    getProviders() {
+      return options.providers ?? [];
+    },
+
+    getStoreFactory() {
+      return options.storeFactory;
+    },
+
+    shouldIsolateStore(componentName?: string): boolean {
+      if (componentName) {
+        const entry = map.get(componentName);
+        if (
+          entry &&
+          isComponentConfig(entry) &&
+          entry.freshStore !== undefined
+        ) {
+          return entry.freshStore;
+        }
+      }
+      return options.storeIsolation ?? false;
     },
   };
 }
