@@ -92,4 +92,91 @@ describe('createRegistry', () => {
 
     expect(registry.getWrapper()).toBeUndefined();
   });
+
+  test('returns empty providers array when not provided', () => {
+    const registry = createRegistry({ Button: mockRenderer });
+
+    expect(registry.getProviders()).toEqual([]);
+  });
+
+  test('returns configured providers', () => {
+    const MockProvider = ({ children }: { children: ReactNode }) =>
+      children as unknown as ReactElement;
+
+    const providers = [
+      { component: MockProvider, props: { theme: 'dark' } },
+      { component: MockProvider },
+    ];
+
+    const registry = createRegistry({ Button: mockRenderer }, { providers });
+
+    expect(registry.getProviders()).toEqual(providers);
+  });
+
+  test('returns undefined storeFactory when not provided', () => {
+    const registry = createRegistry({ Button: mockRenderer });
+
+    expect(registry.getStoreFactory()).toBeUndefined();
+  });
+
+  test('returns configured storeFactory', () => {
+    const storeFactory = () => ({ state: 'initial' });
+    const registry = createRegistry({ Button: mockRenderer }, { storeFactory });
+
+    expect(registry.getStoreFactory()).toBe(storeFactory);
+  });
+
+  test('shouldIsolateStore returns false by default', () => {
+    const registry = createRegistry({ Button: mockRenderer });
+
+    expect(registry.shouldIsolateStore()).toBe(false);
+    expect(registry.shouldIsolateStore('Button')).toBe(false);
+  });
+
+  test('shouldIsolateStore returns global setting when enabled', () => {
+    const registry = createRegistry(
+      { Button: mockRenderer },
+      { storeIsolation: true },
+    );
+
+    expect(registry.shouldIsolateStore()).toBe(true);
+    expect(registry.shouldIsolateStore('Button')).toBe(true);
+  });
+
+  test('shouldIsolateStore respects per-component freshStore override', () => {
+    const registry = createRegistry(
+      {
+        SharedStore: mockRenderer,
+        FreshStore: {
+          render: mockRenderer,
+          freshStore: true,
+        },
+        ExplicitShared: {
+          render: mockRenderer,
+          freshStore: false,
+        },
+      },
+      { storeIsolation: false },
+    );
+
+    expect(registry.shouldIsolateStore('SharedStore')).toBe(false);
+    expect(registry.shouldIsolateStore('FreshStore')).toBe(true);
+    expect(registry.shouldIsolateStore('ExplicitShared')).toBe(false);
+  });
+
+  test('per-component freshStore overrides global storeIsolation', () => {
+    const registry = createRegistry(
+      {
+        Default: mockRenderer,
+        SharedOverride: {
+          render: mockRenderer,
+          freshStore: false,
+        },
+      },
+      { storeIsolation: true },
+    );
+
+    expect(registry.shouldIsolateStore('Default')).toBe(true);
+    expect(registry.shouldIsolateStore('SharedOverride')).toBe(false);
+  });
 });

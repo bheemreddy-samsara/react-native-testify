@@ -8,6 +8,8 @@ export type {
   ComponentEntry,
   RegistryOptions,
   WrapperComponent,
+  ProviderConfig,
+  StoreFactory,
 } from './registry';
 export type { ConnectionStatus, Platform } from './connection';
 
