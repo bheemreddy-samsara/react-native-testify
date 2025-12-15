@@ -25,7 +25,7 @@ Component-level visual regression testing for React Native. Mount components in 
 ## Installation
 
 ```bash
-bun add react-native-testify
+bun add @samsara-dev/react-native-testify
 ```
 
 ## Quick Start
@@ -34,7 +34,7 @@ bun add react-native-testify
 
 ```tsx
 // testify/registry.tsx
-import { createRegistry } from 'react-native-testify';
+import { createRegistry } from '@samsara-dev/react-native-testify';
 import { Button, Card } from '../src/components';
 import { ThemeProvider } from '../src/theme';
 
@@ -53,7 +53,7 @@ export default createRegistry({
 ```tsx
 // index.testify.js
 import { AppRegistry } from 'react-native';
-import { TestifyApp } from 'react-native-testify';
+import { TestifyApp } from '@samsara-dev/react-native-testify';
 import registry from './testify/registry';
 
 const App = () => <TestifyApp registry={registry} />;
@@ -64,7 +64,7 @@ AppRegistry.registerComponent('YourApp', () => App);
 
 ```ts
 // testify.config.ts
-import { defineConfig } from 'react-native-testify/config';
+import { defineConfig } from '@samsara-dev/react-native-testify/config';
 
 export default defineConfig({
   baselines: './testify/baselines',

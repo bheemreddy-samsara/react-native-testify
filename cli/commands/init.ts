@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { loadConfig } from '../config';
 import { generatePolyfillCode, resolvePolyfills } from '../polyfills';
 
-const CONFIG_TEMPLATE = `import { defineConfig } from 'react-native-testify';
+const CONFIG_TEMPLATE = `import { defineConfig } from '@samsara-dev/react-native-testify/config';
 
 export default defineConfig({
   entry: './index.testify.js',
@@ -21,7 +21,7 @@ export default defineConfig({
 });
 `;
 
-const REGISTRY_TEMPLATE = `import { createRegistry } from 'react-native-testify';
+const REGISTRY_TEMPLATE = `import { createRegistry } from '@samsara-dev/react-native-testify';
 // Import your components here
 // import { Button, Card } from '../src/components';
 
@@ -44,7 +44,7 @@ export default createRegistry({
 
 function generateEntryTemplate(polyfillCode = ''): string {
   return `${polyfillCode}import { AppRegistry } from 'react-native';
-import { TestifyApp } from 'react-native-testify';
+import { TestifyApp } from '@samsara-dev/react-native-testify';
 import registry from './testify/registry';
 
 // Get app name from app.json
@@ -123,8 +123,8 @@ export async function runInit() {
 Setup complete! Next steps:
 
 1. Add your components to testify/registry.tsx
-2. Run: npx testify record --ios
-3. Run: npx testify test --ios
+2. Run: bunx testify record --ios
+3. Run: bunx testify test --ios
 
 For git-lfs support (recommended for baselines):
   git lfs install

@@ -1,5 +1,5 @@
 {
-  "name": "react-native-testify",
+  "name": "@samsara-dev/react-native-testify",
   "version": "0.1.0",
   "description": "Component-level visual regression testing for React Native",
   "main": "dist/src/index.js",
@@ -25,15 +25,22 @@
   "engines": {
     "bun": ">=1.0.0"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "scripts": {
     "build": "bun build ./src/index.ts ./src/config.ts --outdir ./dist/src --external react --external react-native && bun build ./cli/index.ts --outdir ./dist/cli",
     "dev": "bun --watch cli/index.ts",
+    "prepublishOnly": "bun run build",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "changeset": "changeset",
+    "release": "changeset publish"
   },
   "keywords": [
     "react-native",
@@ -56,13 +63,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.0",
+    "@changesets/cli": "^2.27.8",
     "@types/bun": "latest",
     "@types/pixelmatch": "^5.2.4",
     "@types/pngjs": "^6.0.1",
     "@types/react": "^18.0.0",
     "typescript": "^5.0.0"
   },
-  "files": ["dist", "src", "cli", "README.md"],
+  "files": ["dist", "src", "cli", "README.md", "CHANGELOG.md"],
   "repository": {
     "type": "git",
     "url": "https://github.com/bheemreddy-samsara/react-native-testify.git"

@@ -1,5 +1,5 @@
 import {AppRegistry} from 'react-native';
-import {TestifyApp} from 'react-native-testify';
+import {TestifyApp} from '@samsara-dev/react-native-testify';
 import registry from './testify/registry';
 import {name as appName} from './app.json';
 

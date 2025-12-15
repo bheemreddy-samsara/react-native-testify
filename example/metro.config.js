@@ -12,7 +12,7 @@ const config = {
     extraNodeModules: {
       'react': path.resolve(exampleNodeModules, 'react'),
       'react-native': path.resolve(exampleNodeModules, 'react-native'),
-      'react-native-testify': testifyRoot,
+      '@samsara-dev/react-native-testify': testifyRoot,
     },
     // Block resolving from testify's node_modules for react packages
     blockList: [
