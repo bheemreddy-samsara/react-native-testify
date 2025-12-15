@@ -2,7 +2,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type CompareResult, compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
-import { launchSimulator, takeScreenshot } from '../device/ios';
+import {
+  cleanupStatusBar,
+  launchSimulator,
+  takeScreenshot,
+} from '../device/ios';
 import {
   type TestResult as ReportTestResult,
   generateHtmlReport,
@@ -51,9 +55,11 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     console.log(`Testing ${components.length} components\n`);
 
     for (const component of components) {
-      const baselinePath = path.join(baselineDir, `${component}.png`);
-      const latestPath = path.join(latestDir, `${component}.png`);
-      const diffPath = path.join(diffDir, `${component}.png`);
+      // Sanitize component name for filename (replace / with -)
+      const safeFilename = component.replace(/\//g, '-');
+      const baselinePath = path.join(baselineDir, `${safeFilename}.png`);
+      const latestPath = path.join(latestDir, `${safeFilename}.png`);
+      const diffPath = path.join(diffDir, `${safeFilename}.png`);
 
       // Check baseline exists
       if (!fs.existsSync(baselinePath)) {
@@ -73,7 +79,8 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       let compareResult: CompareResult | null = null;
       let lastError: string | null = null;
 
-      const bundleId = platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+      const bundleId =
+        platform === 'ios' ? config.ios.bundleId : config.android.packageName;
 
       for (let attempt = 0; attempt <= config.retryCount; attempt++) {
         try {
@@ -162,6 +169,7 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       process.exit(1);
     }
   } finally {
+    await cleanupStatusBar(platform);
     server.stop();
   }
 }

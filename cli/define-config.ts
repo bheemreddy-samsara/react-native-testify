@@ -14,12 +14,16 @@ export function defineConfig(config: {
     simulator?: string;
     scheme?: string;
     workspace?: string;
+    bundleId?: string;
     viewport?: { width: number; height: number };
   };
   android?: {
     emulator?: string;
     packageName?: string;
     viewport?: { width: number; height: number };
+  };
+  statusBar?: {
+    freeze?: boolean;
   };
 }) {
   return config;
