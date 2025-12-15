@@ -14,7 +14,6 @@ describe('validateConfig', () => {
     expect(config.retryCount).toBe(2);
     expect(config.retryDelayMs).toBe(1000);
     expect(config.gitLfs).toBe(false);
-    expect(config.baselineStorage).toBe('local');
   });
 
   test('returns ios defaults', () => {
@@ -73,16 +72,6 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ port: -1 })).toThrow();
     expect(() => validateConfig({ port: 0 })).toThrow();
     expect(() => validateConfig({ port: 8080 })).not.toThrow();
-  });
-
-  test('validates baselineStorage enum', () => {
-    expect(() =>
-      // biome-ignore lint/suspicious/noExplicitAny: Testing invalid input
-      validateConfig({ baselineStorage: 'invalid' as any }),
-    ).toThrow();
-    expect(() => validateConfig({ baselineStorage: 'local' })).not.toThrow();
-    expect(() => validateConfig({ baselineStorage: 's3' })).not.toThrow();
-    expect(() => validateConfig({ baselineStorage: 'gcs' })).not.toThrow();
   });
 
   test('validates viewport dimensions', () => {

@@ -39,6 +39,22 @@ const AliasesConfigSchema = z.union([
   z.record(z.string(), z.string()),
 ]);
 
+const IdleDetectionConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  timeoutMs: z.number().int().positive().default(5000),
+  debounceMs: z.number().int().positive().default(100),
+});
+
+const DiscoveryConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  pattern: z.string().default('**/*.testify.tsx'),
+  rootDir: z.string().optional(),
+  exclude: z
+    .array(z.string())
+    .default(['node_modules', 'dist', '.git', 'ios', 'android']),
+  generatedRegistry: z.string().default('./testify/.generated-registry.tsx'),
+});
+
 const TestifyConfigSchema = z.object({
   entry: z.string().default('./index.testify.js'),
   registry: z.string().default('./testify/registry.tsx'),
@@ -54,7 +70,8 @@ const TestifyConfigSchema = z.object({
   polyfills: PolyfillsConfigSchema.optional(),
   aliases: AliasesConfigSchema.optional(),
   gitLfs: z.boolean().default(false),
-  baselineStorage: z.enum(['local', 's3', 'gcs']).default('local'),
+  discovery: DiscoveryConfigSchema.default({}),
+  idleDetection: IdleDetectionConfigSchema.default({}),
 });
 
 export type TestifyConfig = z.infer<typeof TestifyConfigSchema>;
@@ -64,6 +81,8 @@ export type StatusBarConfig = z.infer<typeof StatusBarConfigSchema>;
 export type PolyfillsConfig = z.infer<typeof PolyfillsConfigSchema>;
 export type AliasesConfig = z.infer<typeof AliasesConfigSchema>;
 export type Viewport = z.infer<typeof ViewportSchema>;
+export type IdleDetectionConfig = z.infer<typeof IdleDetectionConfigSchema>;
+export type DiscoveryConfig = z.infer<typeof DiscoveryConfigSchema>;
 
 export function loadConfig(configPath?: string): TestifyConfig {
   const searchPaths = configPath

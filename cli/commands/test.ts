@@ -188,6 +188,9 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
+    // Send configuration to app
+    server.sendConfig({ idleDetection: config.idleDetection });
+
     const allComponents = await server.getComponentList();
     const components = filterComponents(allComponents, filterPattern);
 

@@ -8,10 +8,17 @@ interface Client {
   messageHandlers: Map<string, (data: Record<string, unknown>) => void>;
 }
 
+export interface IdleDetectionConfig {
+  enabled: boolean;
+  timeoutMs: number;
+  debounceMs: number;
+}
+
 interface ParallelServer {
   start(): Promise<void>;
   stop(): void;
   waitForClients(platforms: Platform[], timeout: number): Promise<void>;
+  sendConfigToAll(config: { idleDetection?: IdleDetectionConfig }): void;
   getConnectedPlatforms(): Platform[];
   mountComponentOnAll(name: string): Promise<void>;
   mountComponent(platform: Platform, name: string): Promise<void>;
@@ -176,6 +183,12 @@ export function createParallelServer(port: number): ParallelServer {
 
       await Promise.all(readyPromises);
       console.log(`[Server] All clients ready: ${platforms.join(', ')}`);
+    },
+
+    sendConfigToAll(config: { idleDetection?: IdleDetectionConfig }) {
+      for (const client of clients.values()) {
+        sendToClient(client, { type: 'configure', ...config });
+      }
     },
 
     getConnectedPlatforms(): Platform[] {

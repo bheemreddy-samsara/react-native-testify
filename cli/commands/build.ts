@@ -9,7 +9,7 @@ export async function runBuild(config: TestifyConfig, args: string[]) {
   if (platform === 'ios') {
     await buildIos(config);
   } else {
-    await buildAndroid(config);
+    await buildAndroid();
   }
 
   console.log('Build complete!');

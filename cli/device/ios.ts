@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { TestifyConfig } from '../config';
+import * as android from './android';
 
 async function exec(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,9 +26,8 @@ async function exec(cmd: string, args: string[]): Promise<string> {
 
 // Track active status bar overrides for cleanup
 let activeStatusBarDeviceId: string | null = null;
-let activeAndroidDemoMode = false;
 
-async function canOverrideIosStatusBar(): Promise<boolean> {
+async function canOverrideStatusBar(): Promise<boolean> {
   try {
     await exec('xcrun', ['simctl', 'help', 'status_bar']);
     return true;
@@ -37,7 +37,7 @@ async function canOverrideIosStatusBar(): Promise<boolean> {
 }
 
 export async function freezeStatusBar(deviceId: string): Promise<boolean> {
-  if (!(await canOverrideIosStatusBar())) {
+  if (!(await canOverrideStatusBar())) {
     console.warn(
       '[warn] Status bar override not available (physical device or older Xcode) - skipping',
     );
@@ -81,116 +81,12 @@ export async function clearStatusBar(deviceId?: string): Promise<void> {
   }
 }
 
-export async function enterAndroidDemoMode(): Promise<boolean> {
-  try {
-    await exec('adb', [
-      'shell',
-      'settings',
-      'put',
-      'global',
-      'sysui_demo_allowed',
-      '1',
-    ]);
-    await exec('adb', [
-      'shell',
-      'am',
-      'broadcast',
-      '-a',
-      'com.android.systemui.demo',
-      '-e',
-      'command',
-      'clock',
-      '-e',
-      'hhmm',
-      '0941',
-    ]);
-    await exec('adb', [
-      'shell',
-      'am',
-      'broadcast',
-      '-a',
-      'com.android.systemui.demo',
-      '-e',
-      'command',
-      'network',
-      '-e',
-      'mobile',
-      'show',
-      '-e',
-      'level',
-      '4',
-      '-e',
-      'datatype',
-      '4g',
-      '-e',
-      'wifi',
-      'false',
-    ]);
-    await exec('adb', [
-      'shell',
-      'am',
-      'broadcast',
-      '-a',
-      'com.android.systemui.demo',
-      '-e',
-      'command',
-      'notifications',
-      '-e',
-      'visible',
-      'false',
-    ]);
-    await exec('adb', [
-      'shell',
-      'am',
-      'broadcast',
-      '-a',
-      'com.android.systemui.demo',
-      '-e',
-      'command',
-      'battery',
-      '-e',
-      'plugged',
-      'false',
-      '-e',
-      'level',
-      '100',
-    ]);
-    activeAndroidDemoMode = true;
-    return true;
-  } catch {
-    console.warn(
-      '[warn] Could not enable Android demo mode (device may lack WRITE_SECURE_SETTINGS) - screenshots may have inconsistent status bar',
-    );
-    return false;
-  }
-}
-
-export async function exitAndroidDemoMode(): Promise<void> {
-  if (!activeAndroidDemoMode) return;
-
-  try {
-    await exec('adb', [
-      'shell',
-      'am',
-      'broadcast',
-      '-a',
-      'com.android.systemui.demo',
-      '-e',
-      'command',
-      'exit',
-    ]);
-    activeAndroidDemoMode = false;
-  } catch {
-    // Ignore errors during cleanup
-  }
-}
-
 export async function cleanupStatusBar(platform?: string): Promise<void> {
   if (!platform || platform === 'ios') {
     await clearStatusBar();
   }
   if (!platform || platform === 'android') {
-    await exitAndroidDemoMode();
+    await android.exitDemoMode();
   }
 }
 
@@ -198,43 +94,7 @@ export function getDeviceId(deviceName: string): Promise<string> {
   return bootSimulator(deviceName);
 }
 
-/**
- * Set Android testify flag (creates file that app checks on startup).
- */
-export async function setAndroidTestifyFlag(
-  packageName: string,
-): Promise<void> {
-  // Create .testify flag file in app's internal storage
-  await exec('adb', [
-    'shell',
-    'run-as',
-    packageName,
-    'touch',
-    `/data/data/${packageName}/files/.testify`,
-  ]);
-}
-
-/**
- * Clear Android testify flag.
- */
-export async function clearAndroidTestifyFlag(
-  packageName: string,
-): Promise<void> {
-  try {
-    await exec('adb', [
-      'shell',
-      'run-as',
-      packageName,
-      'rm',
-      `/data/data/${packageName}/files/.testify`,
-    ]);
-  } catch {
-    // Ignore errors
-  }
-}
-
 export async function bootSimulator(deviceName: string): Promise<string> {
-  // Get device UDID from name
   const devicesJson = await exec('xcrun', [
     'simctl',
     'list',
@@ -276,43 +136,28 @@ export async function launchSimulator(
   if (platform === 'ios') {
     const deviceId = await bootSimulator(config.ios.simulator);
 
-    // Freeze status bar for consistent screenshots (if enabled)
     if (config.statusBar.freeze) {
       await freezeStatusBar(deviceId);
     }
 
-    // Get bundle ID from installed apps or use default
     const bundleId =
       config.ios.bundleId || 'org.reactjs.native.example.TestifyExample';
 
-    // Terminate any existing instance first
     try {
       await exec('xcrun', ['simctl', 'terminate', deviceId, bundleId]);
     } catch {
-      // App might not be running, ignore
+      // App might not be running
     }
 
-    // Launch the app with -TESTIFY flag to load testify bundle
     await exec('xcrun', ['simctl', 'launch', deviceId, bundleId, '-TESTIFY']);
-
-    // Wait for app to be ready
     await new Promise((r) => setTimeout(r, 3000));
   } else {
-    // Enter Android demo mode for consistent status bar (if enabled)
     if (config.statusBar.freeze) {
-      await enterAndroidDemoMode();
+      await android.enterDemoMode();
     }
 
-    // Android: adb shell am start -n <package>/<activity>
     const packageName = config.android.packageName || 'com.testifyexample';
-    await exec('adb', [
-      'shell',
-      'am',
-      'start',
-      '-n',
-      `${packageName}/.MainActivity`,
-    ]);
-    await new Promise((r) => setTimeout(r, 3000));
+    await android.launchApp(packageName);
   }
 }
 
@@ -326,7 +171,6 @@ export async function takeScreenshot(
   deviceName?: string,
 ): Promise<void> {
   if (platform === 'ios') {
-    // Get specific device ID if we have a device name
     let deviceId = cachedDeviceId;
     if (!deviceId && deviceName) {
       deviceId = await getDeviceId(deviceName);
@@ -334,7 +178,6 @@ export async function takeScreenshot(
     }
     const target = deviceId || 'booted';
 
-    // Bring app to foreground before screenshot
     if (bundleId) {
       try {
         await exec('xcrun', ['simctl', 'launch', target, bundleId]);
@@ -344,21 +187,9 @@ export async function takeScreenshot(
       }
     }
 
-    // Capture screenshot from specific simulator
     await exec('xcrun', ['simctl', 'io', target, 'screenshot', outputPath]);
   } else {
-    // Android: bring app to foreground and screenshot
-    if (bundleId) {
-      await exec('adb', [
-        'shell',
-        'am',
-        'start',
-        '-n',
-        `${bundleId}/.MainActivity`,
-      ]);
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    await exec('adb', ['exec-out', 'screencap', '-p', '>', outputPath]);
+    await android.takeScreenshot(outputPath, bundleId);
   }
 }
 
@@ -378,12 +209,11 @@ export async function buildIos(config: TestifyConfig): Promise<void> {
   await exec('xcodebuild', args);
 }
 
-export async function buildAndroid(config: TestifyConfig): Promise<void> {
+export async function buildAndroid(): Promise<void> {
   await exec('./gradlew', ['assembleDebug']);
 }
 
 export async function startMetro(entryFile: string): Promise<void> {
-  // In reality, you'd spawn Metro as a background process
   spawn('npx', ['react-native', 'start', '--entry', entryFile], {
     stdio: 'inherit',
     detached: true,

@@ -33,6 +33,9 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
+    // Send configuration to app
+    server.sendConfig({ idleDetection: config.idleDetection });
+
     // Get component list from app and apply filter
     const allComponents = await server.getComponentList();
     const filterPattern = parseFilterArg(args);

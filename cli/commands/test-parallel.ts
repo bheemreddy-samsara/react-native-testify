@@ -33,6 +33,9 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
     console.log('Waiting for apps to connect...');
     await server.waitForClients(platforms, 60000);
 
+    // Send configuration to all apps
+    server.sendConfigToAll({ idleDetection: config.idleDetection });
+
     // Get component list
     const components = await server.getComponentList();
     console.log(

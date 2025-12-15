@@ -1,6 +1,13 @@
 export { TestifyApp } from './TestifyApp';
+export type { IdleDetectionConfig } from './TestifyApp';
 export { IdleScreen } from './IdleScreen';
 export { createRegistry } from './registry';
+export {
+  waitForIdle,
+  waitForRenderComplete,
+  createIdleCallback,
+} from './idleDetection';
+export type { IdleDetectionOptions } from './idleDetection';
 export type {
   Registry,
   ComponentRenderer,
@@ -11,7 +18,11 @@ export type {
   ProviderConfig,
   StoreFactory,
 } from './registry';
-export type { ConnectionStatus, Platform } from './connection';
+export type {
+  ConnectionStatus,
+  Platform,
+  IdleDetectionConfig as ConnectionIdleConfig,
+} from './connection';
 
 // Config helper for typed config files
 export function defineConfig(config: {
@@ -24,17 +35,29 @@ export function defineConfig(config: {
   retryCount?: number;
   retryDelayMs?: number;
   gitLfs?: boolean;
-  baselineStorage?: 'local' | 's3' | 'gcs';
   ios?: {
     simulator?: string;
     scheme?: string;
     workspace?: string;
+    bundleId?: string;
     viewport?: { width: number; height: number };
   };
   android?: {
     emulator?: string;
     packageName?: string;
     viewport?: { width: number; height: number };
+  };
+  discovery?: {
+    enabled?: boolean;
+    pattern?: string;
+    rootDir?: string;
+    exclude?: string[];
+    generatedRegistry?: string;
+  };
+  idleDetection?: {
+    enabled?: boolean;
+    timeoutMs?: number;
+    debounceMs?: number;
   };
 }) {
   return config;

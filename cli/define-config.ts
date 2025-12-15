@@ -9,7 +9,6 @@ export function defineConfig(config: {
   retryCount?: number;
   retryDelayMs?: number;
   gitLfs?: boolean;
-  baselineStorage?: 'local' | 's3' | 'gcs';
   ios?: {
     simulator?: string;
     scheme?: string;
@@ -33,6 +32,18 @@ export function defineConfig(config: {
         process?: boolean;
       };
   aliases?: 'auto' | Record<string, string>;
+  discovery?: {
+    enabled?: boolean;
+    pattern?: string;
+    rootDir?: string;
+    exclude?: string[];
+    generatedRegistry?: string;
+  };
+  idleDetection?: {
+    enabled?: boolean;
+    timeoutMs?: number;
+    debounceMs?: number;
+  };
 }) {
   return config;
 }

@@ -44,6 +44,12 @@ async function main() {
       break;
     }
 
+    case 'discover': {
+      const { runDiscover } = await import('./commands/discover');
+      await runDiscover(config, args.slice(1));
+      break;
+    }
+
     case 'init': {
       const { runInit } = await import('./commands/init');
       await runInit();
@@ -82,6 +88,7 @@ Commands:
   test              Run visual regression tests
   update            Update specific baseline(s)
   list              List registered components
+  discover          Discover *.testify.tsx files and generate registry
 
 Options:
   --ios             Target iOS simulator
@@ -91,8 +98,10 @@ Options:
   --filter <pattern> Filter components by glob pattern
   --watch, -w       Watch mode - re-run tests on file changes
   --config <path>   Path to config file
+  --dry-run         Show what would be generated (discover command)
+  --verbose, -v     Show detailed output
   --help, -h        Show this help
-  --version, -v     Show version
+  --version         Show version
 
 Examples:
   testify init
@@ -105,6 +114,27 @@ Examples:
   testify record --ios --filter "Card_*,Badge_*"
   testify test --ios --filter "!*_Disabled"
   testify test --ios --watch            # Watch mode
+  testify discover                # Auto-discover *.testify.tsx files
+  testify discover --dry-run      # Preview generated registry
+
+Discovery Mode:
+  Enable in testify.config.ts:
+    discovery: { enabled: true }
+  
+  Then create per-component files:
+    src/components/Button.testify.tsx
+    src/features/Card.testify.tsx
+  
+  Run 'testify discover' to generate the registry.
+
+Idle Detection:
+  By default, screenshots are taken when the JS thread is idle.
+  Configure in testify.config.ts:
+    idleDetection: {
+      enabled: true,      // Use idle detection (default)
+      timeoutMs: 5000,    // Max wait time
+      debounceMs: 100,    // Stability debounce
+    }
 `);
 }
 

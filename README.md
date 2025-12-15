@@ -2,21 +2,29 @@
 
 Component-level visual regression testing for React Native. Mount components in isolation, capture screenshots, and detect UI changes.
 
+> **Note:** This library requires [Bun](https://bun.sh) runtime for the CLI.
+
 ## Features
 
 - **Isolated Component Rendering** - Test components without building the full app
-- **Visual Regression Testing** - Compare screenshots against baselines to detect changes
+- **Visual Regression Testing** - Compare screenshots against baselines using pixelmatch
 - **Provider Support** - Wrap components with Redux, Theme, or any context providers
-- **Async Rendering** - Custom `waitFor` hooks for components with loading states
-- **Per-Component Timing** - Configure render stabilization time per component
+- **Idle Detection** - Automatically wait for JS thread idle before capturing screenshots
+- **Per-Component Config** - Custom wait times, async conditions per component
+- **Auto-Discovery** - Discover `*.testify.tsx` files and generate registry automatically
+- **Parallel Testing** - Run tests on iOS and Android simultaneously
 - **Retry Logic** - Configurable retries for flaky renders
-- **CI Ready** - Works with iOS Simulator and Android Emulator in headless mode
+
+## Requirements
+
+- [Bun](https://bun.sh) >= 1.0.0 (for CLI)
+- React Native >= 0.65.0
+- Xcode (for iOS Simulator)
+- Android Studio (for Android Emulator)
 
 ## Installation
 
 ```bash
-npm install react-native-testify
-# or
 bun add react-native-testify
 ```
 
@@ -35,7 +43,6 @@ export default createRegistry({
   'Button_Disabled': () => <Button disabled title="Disabled" />,
   'Card_Simple': () => <Card title="Hello World" />,
 }, {
-  // Wrap all components with providers
   wrapper: (children) => <ThemeProvider>{children}</ThemeProvider>,
   defaultWaitMs: 300,
 });
@@ -64,6 +71,11 @@ export default defineConfig({
   threshold: 0.01,
   ios: {
     simulator: 'iPhone 15 Pro',
+    bundleId: 'com.yourapp',
+  },
+  android: {
+    emulator: 'Pixel_7_API_34',
+    packageName: 'com.yourapp',
   },
 });
 ```
@@ -72,59 +84,86 @@ export default defineConfig({
 
 ```bash
 # Record baseline screenshots
-npx testify record --ios
+bun testify record --ios
 
 # Run visual regression tests
-npx testify test --ios
+bun testify test --ios
+
+# Run tests on Android
+bun testify test --android
 
 # Run parallel tests on iOS + Android simultaneously
-npx testify test --all
+bun testify test --all
 
 # Update specific baselines
-npx testify update Button_Primary --ios
+bun testify update Button_Primary --ios
 ```
 
-## Parallel Testing (iOS + Android)
+## Auto-Discovery Mode
 
-Run visual tests on both platforms simultaneously:
+Instead of a central registry, you can create per-component testify files:
+
+### 1. Enable discovery in config
+
+```ts
+// testify.config.ts
+export default defineConfig({
+  discovery: {
+    enabled: true,
+    pattern: '**/*.testify.tsx',
+  },
+});
+```
+
+### 2. Create component testify files
+
+```tsx
+// src/components/Button.testify.tsx
+import { Button } from './Button';
+
+export default {
+  'Button/Primary': {
+    render: () => <Button variant="primary" title="Click me" />,
+  },
+  'Button/Secondary': {
+    render: () => <Button variant="secondary" title="Click me" />,
+  },
+  'Button/Disabled': {
+    render: () => <Button disabled title="Disabled" />,
+  },
+};
+```
+
+### 3. Generate registry
 
 ```bash
-# Test on both iOS simulator and Android emulator
-npx testify test --all
-
-# Or explicitly specify platforms
-npx testify test --parallel --ios --android
+bun testify discover
 ```
 
-This launches both devices, connects both apps to the server, and runs tests in parallel:
+## Idle Detection
 
-```
-┌─ Button_Primary
-│  [ios] ✓ Pass
-│  [android] ✓ Pass
-└─
+By default, screenshots are taken when the JS thread becomes idle (using React Native's `InteractionManager`), rather than waiting a fixed time. This makes tests faster and more reliable.
 
-┌─ Card_Simple
-│  [ios] ✓ Pass
-│  [android] ✗ 0.42% diff
-└─
+Configure in your config or per-component:
 
-══════════════════════════════════════════════════
-Results: 3 passed, 1 failed
-  [ios] 2 passed, 0 failed
-  [android] 1 passed, 1 failed
-══════════════════════════════════════════════════
+```ts
+// testify.config.ts
+export default defineConfig({
+  idleDetection: {
+    enabled: true,      // default
+    timeoutMs: 5000,    // max wait before timeout
+    debounceMs: 100,    // stability debounce
+  },
+});
 ```
 
-Baselines are stored per-platform:
-```
-testify/baselines/
-├── ios/
-│   ├── Button_Primary.png
-│   └── Card_Simple.png
-└── android/
-    ├── Button_Primary.png
-    └── Card_Simple.png
+To disable and use fixed wait times:
+
+```ts
+idleDetection: {
+  enabled: false,
+},
+defaultWaitMs: 500,
 ```
 
 ## Registry API
@@ -155,7 +194,6 @@ createRegistry({
   'AsyncComponent': {
     render: () => <DataFetcher />,
     waitFor: async () => {
-      // Wait for data to load
       await someAsyncCondition();
     },
   },
@@ -178,19 +216,33 @@ createRegistry({
 });
 ```
 
+### With store isolation
+
+```tsx
+createRegistry({
+  'Component': {
+    render: () => <Component />,
+    freshStore: true,  // Get fresh store for this component
+  },
+}, {
+  storeFactory: () => createStore(),
+  storeIsolation: true,  // Enable globally
+});
+```
+
 ## Configuration
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `entry` | string | `./index.testify.js` | Testify entry point |
+| `registry` | string | `./testify/registry.tsx` | Registry file path |
 | `baselines` | string | `./testify/baselines` | Baseline screenshots directory |
-| `threshold` | number | `0.01` | Diff threshold (0-1) |
-| `defaultWaitMs` | number | `500` | Default render wait time |
+| `threshold` | number | `0.01` | Diff threshold (0-1) for pass/fail and pixelmatch sensitivity |
+| `defaultWaitMs` | number | `500` | Default render wait time (when idle detection disabled) |
 | `retryCount` | number | `2` | Retry attempts for flaky tests |
 | `retryDelayMs` | number | `1000` | Delay between retries |
 | `port` | number | `8089` | WebSocket server port |
-| `gitLfs` | boolean | `false` | Enable git-lfs for baselines |
-| `baselineStorage` | string | `local` | Storage: `local`, `s3`, `gcs` |
+| `gitLfs` | boolean | `false` | Enable git-lfs tracking hint |
 
 ### iOS Config
 
@@ -199,6 +251,7 @@ ios: {
   simulator: 'iPhone 15 Pro',
   scheme: 'YourApp',
   workspace: 'ios/YourApp.xcworkspace',
+  bundleId: 'com.yourapp',
   viewport: { width: 393, height: 852 },
 }
 ```
@@ -213,106 +266,106 @@ android: {
 }
 ```
 
+### Status Bar
+
+Freeze status bar for consistent screenshots:
+
+```ts
+statusBar: {
+  freeze: true,  // default
+}
+```
+
+### Discovery Config
+
+```ts
+discovery: {
+  enabled: false,
+  pattern: '**/*.testify.tsx',
+  exclude: ['node_modules', 'dist', '.git', 'ios', 'android'],
+  generatedRegistry: './testify/.generated-registry.tsx',
+}
+```
+
+### Idle Detection Config
+
+```ts
+idleDetection: {
+  enabled: true,
+  timeoutMs: 5000,
+  debounceMs: 100,
+}
+```
+
+## CLI Commands
+
+```bash
+bun testify init              # Initialize testify in project
+bun testify build             # Build the app for testing
+bun testify record --ios      # Record baseline screenshots
+bun testify test --ios        # Run visual regression tests
+bun testify test --android    # Test on Android
+bun testify test --all        # Parallel iOS + Android
+bun testify update <name>     # Update specific baseline
+bun testify list              # List registered components
+bun testify discover          # Discover *.testify.tsx files
+
+# Options
+--filter <pattern>            # Filter components (glob pattern)
+--watch, -w                   # Watch mode
+--dry-run                     # Preview without writing (discover)
+```
+
+## Parallel Testing
+
+Run tests on both platforms simultaneously:
+
+```bash
+bun testify test --all
+```
+
+Output:
+```
+┌─ Button_Primary
+│  [ios] ✓ Pass
+│  [android] ✓ Pass
+└─
+
+┌─ Card_Simple
+│  [ios] ✓ Pass
+│  [android] ✗ 0.42% diff
+└─
+
+Results: 3 passed, 1 failed
+```
+
+Baselines are stored per-platform:
+```
+testify/baselines/
+├── ios/
+│   ├── Button_Primary.png
+│   └── Card_Simple.png
+└── android/
+    ├── Button_Primary.png
+    └── Card_Simple.png
+```
+
 ## How It Works
 
-### Architecture
-
-```mermaid
-sequenceDiagram
-    participant iOS as iOS Simulator<br/>TestifyApp
-    participant CLI as CLI Server<br/>testify test --all
-    participant Android as Android Emulator<br/>TestifyApp
-
-    iOS->>CLI: 1. WebSocket connect (?platform=ios)
-    Android->>CLI: 1. WebSocket connect (?platform=android)
-    iOS->>CLI: 2. { type: "ready", platform: "ios" }
-    Android->>CLI: 2. { type: "ready", platform: "android" }
-    
-    CLI->>iOS: 3. { type: "list" }
-    iOS->>CLI: 4. { type: "components", components: [...] }
-    
-    loop For each component (parallel on both devices)
-        CLI->>iOS: 5. { type: "mount", component: "Button_Primary" }
-        CLI->>Android: 5. { type: "mount", component: "Button_Primary" }
-        Note over iOS: Render & wait
-        Note over Android: Render & wait
-        iOS->>CLI: 6. { type: "mounted" }
-        Android->>CLI: 6. { type: "mounted" }
-        Note over CLI: Screenshots (parallel):<br/>xcrun simctl io (iOS)<br/>adb exec-out screencap (Android)
-        CLI->>iOS: 7. { type: "unmount" }
-        CLI->>Android: 7. { type: "unmount" }
-        iOS->>CLI: 8. { type: "unmounted" }
-        Android->>CLI: 8. { type: "unmounted" }
-    end
-    
-    Note over CLI: Compare screenshots<br/>per-platform baselines
-```
-
-### Step-by-Step Flow
-
-**1. Start the app with Testify harness:**
-```bash
-# Metro bundler serves index.js which loads TestifyApp
-cd your-app && npx react-native start
-```
-
-**2. App shows IdleScreen (Disconnected):**
-- WebSocket client tries to connect to `ws://localhost:8089`
-- Shows "Attempting to connect on port 8089"
-
-**3. Start CLI server:**
-```bash
-npx testify record --ios   # Record baselines
-# or
-npx testify test --ios     # Run tests
-```
-
-**4. Connection established:**
-- Server logs: `[Server] Client connected`
-- App sends: `{ type: "ready" }`
-- App shows "Connected" status
-
-**5. Server requests component list:**
-- Server sends: `{ type: "list" }`
-- App responds: `{ type: "components", components: ["Button_Primary", ...] }`
-
-**6. For each component:**
-```
-Server sends:  { type: "mount", component: "Button_Primary" }
-     ↓
-App renders:   <Button_Primary /> (from registry)
-     ↓
-App waits:     300ms (configurable waitMs)
-     ↓
-App sends:     { type: "mounted", component: "Button_Primary" }
-     ↓
-Server runs:   xcrun simctl io booted screenshot /path/to/screenshot.png
-     ↓
-Server sends:  { type: "unmount" }
-     ↓
-App returns:   <IdleScreen />
-     ↓
-App sends:     { type: "unmounted" }
-```
-
-**7. After all components:**
-- Compare screenshots against baselines using pixelmatch
-- Report pass/fail for each component
-
-### Key Files
-
-| File | Role |
-|------|------|
-| `src/TestifyApp.tsx` | Harness that mounts/unmounts components |
-| `src/connection.ts` | WebSocket client (app side) |
-| `src/registry.ts` | Component registry with wrappers/waitFor |
-| `cli/server.ts` | WebSocket server (CLI side) |
-| `cli/device/ios.ts` | `xcrun simctl` commands for screenshots |
-| `cli/compare.ts` | pixelmatch image diffing |
+1. **Start Metro** with testify entry point
+2. **CLI launches** simulator/emulator and connects via WebSocket
+3. **For each component:**
+   - CLI sends mount command
+   - App renders component and waits for idle (or fixed time)
+   - App signals ready
+   - CLI captures screenshot via `xcrun simctl` (iOS) or `adb` (Android)
+   - CLI sends unmount command
+4. **Compare** screenshots against baselines using pixelmatch
+5. **Report** pass/fail with diff images for failures
 
 ## Git LFS for Baselines
 
-Large baseline images can bloat your repo. Enable git-lfs:
+Large baseline images can bloat your repo:
 
 ```bash
 git lfs install

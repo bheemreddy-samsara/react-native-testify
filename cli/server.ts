@@ -1,9 +1,16 @@
 type MessageHandler = (ws: unknown, data: Record<string, unknown>) => void;
 
+export interface IdleDetectionConfig {
+  enabled: boolean;
+  timeoutMs: number;
+  debounceMs: number;
+}
+
 interface TestifyServer {
   start(): Promise<void>;
   stop(): void;
   waitForConnection(timeout: number): Promise<void>;
+  sendConfig(config: { idleDetection?: IdleDetectionConfig }): void;
   getComponentList(): Promise<string[]>;
   mountComponent(name: string): Promise<void>;
   unmountComponent(): Promise<void>;
@@ -141,6 +148,10 @@ export function createServer(port: number): TestifyServer {
           resolve();
         };
       });
+    },
+
+    sendConfig(config: { idleDetection?: IdleDetectionConfig }) {
+      sendToClient({ type: 'configure', ...config });
     },
 
     async getComponentList(): Promise<string[]> {

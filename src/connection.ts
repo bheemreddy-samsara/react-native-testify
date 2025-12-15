@@ -3,9 +3,16 @@ type StatusHandler = (status: ConnectionStatus) => void;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
+export interface IdleDetectionConfig {
+  enabled: boolean;
+  timeoutMs: number;
+  debounceMs: number;
+}
+
 export interface TestifyMessage {
-  type: 'mount' | 'unmount' | 'list' | 'ping';
+  type: 'mount' | 'unmount' | 'list' | 'ping' | 'configure';
   component?: string;
+  idleDetection?: IdleDetectionConfig;
 }
 
 export interface TestifyConnection {
