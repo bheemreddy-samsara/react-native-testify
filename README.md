@@ -84,19 +84,19 @@ export default defineConfig({
 
 ```bash
 # Record baseline screenshots
-bun testify record --ios
+bunx testify record --ios
 
 # Run visual regression tests
-bun testify test --ios
+bunx testify test --ios
 
 # Run tests on Android
-bun testify test --android
+bunx testify test --android
 
 # Run parallel tests on iOS + Android simultaneously
-bun testify test --all
+bunx testify test --all
 
 # Update specific baselines
-bun testify update Button_Primary --ios
+bunx testify update Button_Primary --ios
 ```
 
 ## Auto-Discovery Mode
@@ -137,7 +137,7 @@ export default {
 ### 3. Generate registry
 
 ```bash
-bun testify discover
+bunx testify discover
 ```
 
 ## Idle Detection
@@ -302,20 +302,26 @@ idleDetection: {
 ## CLI Commands
 
 ```bash
-bun testify init              # Initialize testify in project
-bun testify build             # Build the app for testing
-bun testify record --ios      # Record baseline screenshots
-bun testify test --ios        # Run visual regression tests
-bun testify test --android    # Test on Android
-bun testify test --all        # Parallel iOS + Android
-bun testify update <name>     # Update specific baseline
-bun testify list              # List registered components
-bun testify discover          # Discover *.testify.tsx files
+bunx testify init              # Initialize testify in project
+bunx testify build             # Build the app for testing
+bunx testify record --ios      # Record baseline screenshots
+bunx testify test --ios        # Run visual regression tests
+bunx testify test --android    # Test on Android
+bunx testify test --all        # Parallel iOS + Android
+bunx testify update <name>     # Update specific baseline
+bunx testify list              # List registered components
+bunx testify discover          # Discover *.testify.tsx files
 
 # Options
+--ios                        # Target iOS simulator
+--android                    # Target Android emulator
+--all                        # Target both iOS and Android (parallel)
+--parallel                   # Run tests in parallel on multiple devices
 --filter <pattern>            # Filter components (glob pattern)
 --watch, -w                   # Watch mode
+--config <path>               # Path to config file
 --dry-run                     # Preview without writing (discover)
+--verbose, -v                 # Show detailed output
 ```
 
 ## Parallel Testing
@@ -323,7 +329,7 @@ bun testify discover          # Discover *.testify.tsx files
 Run tests on both platforms simultaneously:
 
 ```bash
-bun testify test --all
+bunx testify test --all
 ```
 
 Output:
