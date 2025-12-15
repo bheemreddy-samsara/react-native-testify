@@ -14,6 +14,7 @@ export function defineConfig(config: {
     simulator?: string;
     scheme?: string;
     workspace?: string;
+    bundleId?: string;
     viewport?: { width: number; height: number };
   };
   android?: {
@@ -21,6 +22,14 @@ export function defineConfig(config: {
     packageName?: string;
     viewport?: { width: number; height: number };
   };
+  polyfills?:
+    | 'auto'
+    | {
+        buffer?: boolean;
+        crypto?: boolean;
+        process?: boolean;
+      };
+  aliases?: 'auto' | Record<string, string>;
 }) {
   return config;
 }
