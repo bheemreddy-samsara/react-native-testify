@@ -14,11 +14,19 @@ export interface IdleDetectionConfig {
   debounceMs: number;
 }
 
+export interface AppConfig {
+  idleDetection?: IdleDetectionConfig;
+  defaultWaitMs?: number;
+}
+
+const DEFAULT_MESSAGE_TIMEOUT_MS = 30_000;
+const MOUNT_TIMEOUT_PADDING_MS = 5_000;
+
 interface ParallelServer {
   start(): Promise<void>;
   stop(): void;
   waitForClients(platforms: Platform[], timeout: number): Promise<void>;
-  sendConfigToAll(config: { idleDetection?: IdleDetectionConfig }): void;
+  sendConfigToAll(config: AppConfig): void;
   getConnectedPlatforms(): Platform[];
   mountComponentOnAll(name: string): Promise<void>;
   mountComponent(platform: Platform, name: string): Promise<void>;
@@ -31,11 +39,12 @@ export function createParallelServer(port: number): ParallelServer {
   let server: unknown = null;
   const clients: Map<Platform, Client> = new Map();
   const pendingReady: Map<Platform, () => void> = new Map();
+  let lastConfig: AppConfig | null = null;
 
   const waitForMessage = (
     client: Client,
     type: string,
-    timeout = 30000,
+    timeout = DEFAULT_MESSAGE_TIMEOUT_MS,
   ): Promise<Record<string, unknown>> => {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -58,6 +67,29 @@ export function createParallelServer(port: number): ParallelServer {
     if (ws && typeof ws.send === 'function') {
       ws.send(JSON.stringify(data));
     }
+  };
+
+  const getMountTimeoutMs = (): number => {
+    let timeout = DEFAULT_MESSAGE_TIMEOUT_MS;
+    const idleDetection = lastConfig?.idleDetection;
+
+    if (idleDetection?.enabled) {
+      timeout = Math.max(
+        timeout,
+        idleDetection.timeoutMs +
+          idleDetection.debounceMs +
+          MOUNT_TIMEOUT_PADDING_MS,
+      );
+    }
+
+    if (typeof lastConfig?.defaultWaitMs === 'number') {
+      timeout = Math.max(
+        timeout,
+        lastConfig.defaultWaitMs + MOUNT_TIMEOUT_PADDING_MS,
+      );
+    }
+
+    return timeout;
   };
 
   const handleMessage = (client: Client, data: Record<string, unknown>) => {
@@ -185,7 +217,8 @@ export function createParallelServer(port: number): ParallelServer {
       console.log(`[Server] All clients ready: ${platforms.join(', ')}`);
     },
 
-    sendConfigToAll(config: { idleDetection?: IdleDetectionConfig }) {
+    sendConfigToAll(config: AppConfig) {
+      lastConfig = config;
       for (const client of clients.values()) {
         sendToClient(client, { type: 'configure', ...config });
       }
@@ -199,7 +232,7 @@ export function createParallelServer(port: number): ParallelServer {
       const promises = Array.from(clients.entries()).map(
         async ([platform, client]) => {
           sendToClient(client, { type: 'mount', component: name });
-          await waitForMessage(client, 'mounted');
+          await waitForMessage(client, 'mounted', getMountTimeoutMs());
           console.log(`  [${platform}] Mounted: ${name}`);
         },
       );
@@ -212,7 +245,7 @@ export function createParallelServer(port: number): ParallelServer {
       if (!client) throw new Error(`No client for platform: ${platform}`);
 
       sendToClient(client, { type: 'mount', component: name });
-      await waitForMessage(client, 'mounted');
+      await waitForMessage(client, 'mounted', getMountTimeoutMs());
     },
 
     async unmountComponentOnAll() {

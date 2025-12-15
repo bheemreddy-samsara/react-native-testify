@@ -53,6 +53,10 @@ export function TestifyApp({
     debounceMs: idleDetection.debounceMs ?? 100,
   });
 
+  const [defaultWaitMsOverride, setDefaultWaitMsOverride] = useState<
+    number | undefined
+  >();
+
   const [mountState, setMountState] = useState<MountState | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'disconnected'
@@ -85,6 +89,8 @@ export function TestifyApp({
           await resolved.waitFor();
         }
 
+        let waitMsUsed = 0;
+
         // Use idle detection or fall back to fixed wait time
         if (idleConfig.enabled) {
           await waitForRenderComplete({
@@ -92,8 +98,18 @@ export function TestifyApp({
             debounceMs: idleConfig.debounceMs,
           });
         } else {
-          // Fall back to fixed wait time
-          await new Promise((resolve) => setTimeout(resolve, resolved.waitMs));
+          const shouldOverrideDefaultWait =
+            resolved.usesDefaultWaitMs &&
+            registry.options.defaultWaitMs === undefined &&
+            typeof defaultWaitMsOverride === 'number';
+
+          const waitMs = shouldOverrideDefaultWait
+            ? defaultWaitMsOverride
+            : resolved.waitMs;
+
+          waitMsUsed = waitMs;
+
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
         }
 
         setMountState((prev) => (prev ? { ...prev, status: 'ready' } : null));
@@ -101,7 +117,7 @@ export function TestifyApp({
         connectionRef.current.send({
           type: 'mounted',
           component: componentName,
-          waitMs: resolved.waitMs,
+          waitMs: waitMsUsed,
         });
       } catch (err) {
         const errorMessage =
@@ -115,7 +131,13 @@ export function TestifyApp({
         });
       }
     },
-    [registry, idleConfig.enabled, idleConfig.timeoutMs, idleConfig.debounceMs],
+    [
+      registry,
+      idleConfig.enabled,
+      idleConfig.timeoutMs,
+      idleConfig.debounceMs,
+      defaultWaitMsOverride,
+    ],
   );
 
   // Keep message handler in ref to avoid reconnection on config changes
@@ -129,6 +151,9 @@ export function TestifyApp({
               timeoutMs: message.idleDetection.timeoutMs,
               debounceMs: message.idleDetection.debounceMs,
             });
+          }
+          if (typeof message.defaultWaitMs === 'number') {
+            setDefaultWaitMsOverride(message.defaultWaitMs);
           }
           break;
 

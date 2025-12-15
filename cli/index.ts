@@ -2,39 +2,77 @@
 
 import { loadConfig } from './config';
 
+function stripConfigArg(args: string[]): {
+  configPath: string | undefined;
+  cleanedArgs: string[];
+} {
+  const cleanedArgs: string[] = [];
+  let configPath: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '--config') {
+      const next = args[i + 1];
+      if (!next || next.startsWith('-')) {
+        console.error('Missing value for --config <path>');
+        process.exit(1);
+      }
+      configPath = next;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--config=')) {
+      const value = arg.slice('--config='.length);
+      if (!value) {
+        console.error('Missing value for --config=<path>');
+        process.exit(1);
+      }
+      configPath = value;
+      continue;
+    }
+
+    cleanedArgs.push(arg);
+  }
+
+  return { configPath, cleanedArgs };
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
+const { configPath, cleanedArgs } = stripConfigArg(args.slice(1));
 
 async function main() {
-  const config = loadConfig();
+  const config = loadConfig(configPath);
 
   switch (command) {
     case 'build': {
       const { runBuild } = await import('./commands/build');
-      await runBuild(config, args.slice(1));
+      await runBuild(config, cleanedArgs);
       break;
     }
 
     case 'record': {
       const { runRecord } = await import('./commands/record');
-      await runRecord(config, args.slice(1));
+      await runRecord(config, cleanedArgs);
       break;
     }
 
     case 'test': {
-      if (args.includes('--parallel') || args.includes('--all')) {
+      if (cleanedArgs.includes('--parallel') || cleanedArgs.includes('--all')) {
         const { runParallelTest } = await import('./commands/test-parallel');
-        await runParallelTest(config, args.slice(1));
+        await runParallelTest(config, cleanedArgs);
       } else {
         const { runTest } = await import('./commands/test');
-        await runTest(config, args.slice(1));
+        await runTest(config, cleanedArgs);
       }
       break;
     }
 
     case 'update': {
       const { runUpdate } = await import('./commands/update');
-      await runUpdate(config, args.slice(1));
+      await runUpdate(config, cleanedArgs);
       break;
     }
 
@@ -46,7 +84,7 @@ async function main() {
 
     case 'discover': {
       const { runDiscover } = await import('./commands/discover');
-      await runDiscover(config, args.slice(1));
+      await runDiscover(config, cleanedArgs);
       break;
     }
 

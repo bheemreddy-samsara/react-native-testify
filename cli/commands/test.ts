@@ -70,7 +70,6 @@ async function runTestCycle(
     for (let attempt = 0; attempt <= config.retryCount; attempt++) {
       try {
         await server.mountComponent(component);
-        await new Promise((r) => setTimeout(r, config.defaultWaitMs));
         await takeScreenshot(platform, latestPath, bundleId);
         await server.unmountComponent();
 
@@ -189,7 +188,10 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     await server.waitForConnection(60000);
 
     // Send configuration to app
-    server.sendConfig({ idleDetection: config.idleDetection });
+    server.sendConfig({
+      idleDetection: config.idleDetection,
+      defaultWaitMs: config.defaultWaitMs,
+    });
 
     const allComponents = await server.getComponentList();
     const components = filterComponents(allComponents, filterPattern);

@@ -11,6 +11,12 @@
       "types": "./src/index.ts",
       "import": "./dist/src/index.js",
       "require": "./dist/src/index.js"
+    },
+    "./config": {
+      "react-native": "./src/config.ts",
+      "types": "./src/config.ts",
+      "import": "./dist/src/config.js",
+      "require": "./dist/src/config.js"
     }
   },
   "bin": {
@@ -20,7 +26,7 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist/src --external react --external react-native && bun build ./cli/index.ts --outdir ./dist/cli",
+    "build": "bun build ./src/index.ts ./src/config.ts --outdir ./dist/src --external react --external react-native && bun build ./cli/index.ts --outdir ./dist/cli",
     "dev": "bun --watch cli/index.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

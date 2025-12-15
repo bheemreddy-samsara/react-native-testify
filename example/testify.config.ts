@@ -1,4 +1,4 @@
-import {defineConfig} from '../cli/define-config';
+import { defineConfig } from 'react-native-testify/config';
 
 export default defineConfig({
   entry: './index.testify.js',

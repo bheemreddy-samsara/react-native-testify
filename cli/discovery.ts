@@ -132,10 +132,27 @@ export function generateRegistryCode(
 ): string {
   const imports: string[] = [];
   const spreads: string[] = [];
+  const usedNames = new Set<string>();
 
   for (const file of files) {
     const importPath = getRelativeImportPath(registryPath, file.filePath);
-    const safeName = `${file.baseName.replace(/[^a-zA-Z0-9_]/g, '_')}Variants`;
+    let safeNameBase = file.relativePath
+      .replace(/\\/g, '/')
+      .replace(/\.tsx?$/, '')
+      .replace(/[^a-zA-Z0-9_]/g, '_');
+
+    if (!/^[a-zA-Z_]/.test(safeNameBase)) {
+      safeNameBase = `_${safeNameBase}`;
+    }
+
+    let safeName = `${safeNameBase}Variants`;
+    let suffix = 2;
+    while (usedNames.has(safeName)) {
+      safeName = `${safeNameBase}Variants_${suffix}`;
+      suffix += 1;
+    }
+    usedNames.add(safeName);
+
     imports.push(`import ${safeName} from '${importPath}';`);
     spreads.push(`  ...${safeName},`);
   }

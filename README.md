@@ -64,7 +64,7 @@ AppRegistry.registerComponent('YourApp', () => App);
 
 ```ts
 // testify.config.ts
-import { defineConfig } from 'react-native-testify';
+import { defineConfig } from 'react-native-testify/config';
 
 export default defineConfig({
   baselines: './testify/baselines',

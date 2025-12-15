@@ -13,6 +13,7 @@ export interface TestifyMessage {
   type: 'mount' | 'unmount' | 'list' | 'ping' | 'configure';
   component?: string;
   idleDetection?: IdleDetectionConfig;
+  defaultWaitMs?: number;
 }
 
 export interface TestifyConnection {

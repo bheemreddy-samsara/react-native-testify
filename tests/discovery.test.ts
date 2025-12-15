@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { discoverTestifyFiles } from '../cli/discovery';
+import { discoverTestifyFiles, generateRegistryCode } from '../cli/discovery';
 
 describe('discoverTestifyFiles', () => {
   function createTempDir(): string {
@@ -140,6 +140,61 @@ describe('discoverTestifyFiles', () => {
       const files = discoverTestifyFiles({ rootDir: tmpDir });
 
       expect(files.length).toBe(0);
+    } finally {
+      cleanup(tmpDir);
+    }
+  });
+
+  test('generateRegistryCode avoids import identifier collisions', () => {
+    const tmpDir = createTempDir();
+    try {
+      createFile(tmpDir, 'src/a-b.testify.tsx');
+      createFile(tmpDir, 'src/a_b.testify.tsx');
+
+      const files = discoverTestifyFiles({ rootDir: tmpDir });
+      const registryPath = path.join(tmpDir, 'testify/.generated-registry.tsx');
+      const code = generateRegistryCode(files, registryPath);
+
+      const importLines = code
+        .split('\n')
+        .filter((line) =>
+          /^import\s+[a-zA-Z_][a-zA-Z0-9_]*\s+from\s+/.test(line),
+        );
+
+      const importNames = importLines.map((line) => {
+        const match = line.match(
+          /^import\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+from\s+/,
+        );
+        if (!match) {
+          throw new Error(`Invalid import line: ${line}`);
+        }
+        return match[1];
+      });
+
+      expect(new Set(importNames).size).toBe(importNames.length);
+    } finally {
+      cleanup(tmpDir);
+    }
+  });
+
+  test('generateRegistryCode prefixes identifiers that start with digits', () => {
+    const tmpDir = createTempDir();
+    try {
+      createFile(tmpDir, '1-intro/Button.testify.tsx');
+
+      const files = discoverTestifyFiles({ rootDir: tmpDir });
+      const registryPath = path.join(tmpDir, 'testify/.generated-registry.tsx');
+      const code = generateRegistryCode(files, registryPath);
+
+      const importLines = code
+        .split('\n')
+        .filter((line) =>
+          /^import\s+[a-zA-Z_][a-zA-Z0-9_]*\s+from\s+/.test(line),
+        );
+
+      for (const line of importLines) {
+        expect(line).toMatch(/^import\s+[a-zA-Z_][a-zA-Z0-9_]*\s+from\s+/);
+      }
     } finally {
       cleanup(tmpDir);
     }

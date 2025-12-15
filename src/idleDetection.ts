@@ -59,27 +59,45 @@ export function createIdleCallback(
     options;
 
   let cancelled = false;
+  let fired = false;
+  let debounceId: ReturnType<typeof setTimeout> | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let handle: { cancel: () => void } | null = null;
+
+  const cleanup = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    if (debounceId) {
+      clearTimeout(debounceId);
+      debounceId = null;
+    }
+    if (handle) {
+      handle.cancel();
+      handle = null;
+    }
+  };
+
+  const fire = () => {
+    if (cancelled || fired) return;
+    fired = true;
+    cleanup();
+    callback();
+  };
 
   // Start timeout
-  const timeoutId = setTimeout(() => {
-    if (!cancelled) callback();
-  }, timeoutMs);
+  timeoutId = setTimeout(fire, timeoutMs);
 
   // Use InteractionManager
-  const handle = InteractionManager.runAfterInteractions(() => {
-    setTimeout(() => {
-      if (!cancelled) {
-        clearTimeout(timeoutId);
-        callback();
-      }
-    }, debounceMs);
+  handle = InteractionManager.runAfterInteractions(() => {
+    debounceId = setTimeout(fire, debounceMs);
   });
 
   // Return cancel function
   return () => {
     cancelled = true;
-    clearTimeout(timeoutId);
-    handle.cancel();
+    cleanup();
   };
 }
 
