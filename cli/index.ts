@@ -1,6 +1,23 @@
 #!/usr/bin/env bun
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { loadConfig } from './config';
+
+const packageJson = (() => {
+  try {
+    const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+    return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      name?: string;
+      version?: string;
+    };
+  } catch {
+    return { name: 'react-native-testify', version: 'unknown' };
+  }
+})();
+
+const cliName = packageJson.name ?? 'react-native-testify';
+const cliVersion = packageJson.version ?? 'unknown';
 
 function stripConfigArg(args: string[]): {
   configPath: string | undefined;
@@ -102,7 +119,7 @@ async function main() {
 
     case '--version':
     case '-v':
-      console.log('react-native-testify v0.1.0');
+      console.log(`${cliName} v${cliVersion}`);
       break;
 
     default:
@@ -114,7 +131,7 @@ async function main() {
 
 function printHelp() {
   console.log(`
-react-native-testify - Component-level visual regression testing for React Native
+${cliName} - Component-level visual regression testing for React Native
 
 Usage:
   testify <command> [options]

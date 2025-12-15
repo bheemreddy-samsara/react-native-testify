@@ -1,6 +1,6 @@
 import React from 'react';
 import {View, StyleSheet} from 'react-native';
-import {createRegistry} from 'react-native-testify';
+import {createRegistry} from '@samsara-dev/react-native-testify';
 import {Button, Card, Avatar, Badge} from '../src/components';
 
 const Centered = ({children}: {children: React.ReactNode}) => (
