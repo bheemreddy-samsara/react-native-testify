@@ -43,8 +43,9 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
       // Wait for render stabilization
       await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
-      // Take screenshot
-      const screenshotPath = path.join(baselineDir, `${component}.png`);
+      // Take screenshot (sanitize component name for filename)
+      const safeFilename = component.replace(/\//g, '-');
+      const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
       const bundleId =
         platform === 'ios' ? config.ios.bundleId : config.android.packageName;
       await takeScreenshot(platform, screenshotPath, bundleId);
