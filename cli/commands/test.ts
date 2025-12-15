@@ -9,6 +9,7 @@ import {
   generateHtmlReport,
 } from '../report';
 import { createServer } from '../server';
+import { createWatcher, parseWatchArg } from '../watcher';
 
 interface TestResult {
   component: string;
@@ -20,9 +21,146 @@ interface TestResult {
   diffPath?: string;
 }
 
-export async function runTest(config: TestifyConfig, args: string[]) {
-  const platform = args.includes('--android') ? 'android' : 'ios';
+interface TestServer {
+  getComponentList(): Promise<string[]>;
+  mountComponent(name: string): Promise<void>;
+  unmountComponent(): Promise<void>;
+}
+
+async function runTestCycle(
+  config: TestifyConfig,
+  platform: 'ios' | 'android',
+  components: string[],
+  server: TestServer,
+  baselineDir: string,
+  diffDir: string,
+  latestDir: string,
+): Promise<TestResult[]> {
   const results: TestResult[] = [];
+  const bundleId =
+    platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+
+  for (const component of components) {
+    const baselinePath = path.join(baselineDir, `${component}.png`);
+    const latestPath = path.join(latestDir, `${component}.png`);
+    const diffPath = path.join(diffDir, `${component}.png`);
+
+    if (!fs.existsSync(baselinePath)) {
+      results.push({
+        component,
+        passed: false,
+        error: 'No baseline found. Run `testify record` first.',
+        baselinePath,
+        latestPath,
+        diffPath,
+      });
+      console.log(`  ✗ ${component} - No baseline`);
+      continue;
+    }
+
+    let compareResult: CompareResult | null = null;
+    let lastError: string | null = null;
+
+    for (let attempt = 0; attempt <= config.retryCount; attempt++) {
+      try {
+        await server.mountComponent(component);
+        await new Promise((r) => setTimeout(r, config.defaultWaitMs));
+        await takeScreenshot(platform, latestPath, bundleId);
+        await server.unmountComponent();
+
+        compareResult = await compareImages(
+          baselinePath,
+          latestPath,
+          diffPath,
+          config.threshold,
+        );
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        if (attempt < config.retryCount) {
+          await new Promise((r) => setTimeout(r, config.retryDelayMs));
+        }
+      }
+    }
+
+    if (!compareResult) {
+      results.push({
+        component,
+        passed: false,
+        error: lastError || 'Unknown error',
+        baselinePath,
+        latestPath,
+        diffPath,
+      });
+      console.log(`  ✗ ${component} - ${lastError}`);
+      continue;
+    }
+
+    if (compareResult.match) {
+      results.push({
+        component,
+        passed: true,
+        diffPercentage: 0,
+        baselinePath,
+        latestPath,
+      });
+      console.log(`  ✓ ${component}`);
+      if (fs.existsSync(diffPath)) fs.unlinkSync(diffPath);
+    } else {
+      results.push({
+        component,
+        passed: false,
+        diffPercentage: compareResult.diffPercentage,
+        baselinePath,
+        latestPath,
+        diffPath,
+      });
+      console.log(
+        `  ✗ ${component} - ${(compareResult.diffPercentage * 100).toFixed(2)}% diff`,
+      );
+    }
+  }
+
+  return results;
+}
+
+function printSummary(
+  results: TestResult[],
+  platform: 'ios' | 'android',
+  config: TestifyConfig,
+  diffDir: string,
+): boolean {
+  const passed = results.filter((r) => r.passed).length;
+  const failed = results.filter((r) => !r.passed).length;
+
+  console.log(`\n${'─'.repeat(40)}`);
+  console.log(`Results: ${passed} passed, ${failed} failed`);
+
+  const reportResults: ReportTestResult[] = results.map((r) => ({
+    ...r,
+    platform,
+  }));
+
+  const reportPath = generateHtmlReport({
+    outputDir: config.baselines,
+    results: reportResults,
+    threshold: config.threshold,
+  });
+
+  console.log(`\nReport: file://${reportPath}`);
+
+  if (failed > 0) {
+    console.log(`Diff images saved to: ${diffDir}`);
+  }
+
+  return failed === 0;
+}
+
+export async function runTest(config: TestifyConfig, args: string[]) {
+  const platform: 'ios' | 'android' = args.includes('--android')
+    ? 'android'
+    : 'ios';
+  const watchMode = parseWatchArg(args);
 
   console.log(`Running visual tests for ${platform}...`);
 
@@ -30,24 +168,19 @@ export async function runTest(config: TestifyConfig, args: string[]) {
   const diffDir = path.resolve(config.baselines, `${platform}-diff`);
   const latestDir = path.resolve(config.baselines, `${platform}-latest`);
 
-  // Ensure directories exist
   fs.mkdirSync(diffDir, { recursive: true });
   fs.mkdirSync(latestDir, { recursive: true });
 
-  // Start WebSocket server
   const server = createServer(config.port);
   await server.start();
 
   try {
-    // Launch simulator
     console.log('Launching simulator...');
     await launchSimulator(config, platform);
 
-    // Wait for app connection
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
-    // Get component list and apply filter
     const allComponents = await server.getComponentList();
     const filterPattern = parseFilterArg(args);
     const components = filterComponents(allComponents, filterPattern);
@@ -60,116 +193,52 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       console.log(`Testing ${components.length} components\n`);
     }
 
-    for (const component of components) {
-      const baselinePath = path.join(baselineDir, `${component}.png`);
-      const latestPath = path.join(latestDir, `${component}.png`);
-      const diffPath = path.join(diffDir, `${component}.png`);
-
-      // Check baseline exists
-      if (!fs.existsSync(baselinePath)) {
-        results.push({
-          component,
-          passed: false,
-          error: 'No baseline found. Run `testify record` first.',
-          baselinePath,
-          latestPath,
-          diffPath,
-        });
-        console.log(`  ✗ ${component} - No baseline`);
-        continue;
-      }
-
-      // Mount and screenshot with retry
-      let compareResult: CompareResult | null = null;
-      let lastError: string | null = null;
-
-      const bundleId =
-        platform === 'ios' ? config.ios.bundleId : config.android.packageName;
-
-      for (let attempt = 0; attempt <= config.retryCount; attempt++) {
-        try {
-          await server.mountComponent(component);
-          await new Promise((r) => setTimeout(r, config.defaultWaitMs));
-          await takeScreenshot(platform, latestPath, bundleId);
-          await server.unmountComponent();
-
-          compareResult = await compareImages(
-            baselinePath,
-            latestPath,
-            diffPath,
-            config.threshold,
-          );
-          break;
-        } catch (err) {
-          lastError = err instanceof Error ? err.message : String(err);
-          if (attempt < config.retryCount) {
-            await new Promise((r) => setTimeout(r, config.retryDelayMs));
-          }
-        }
-      }
-
-      if (!compareResult) {
-        results.push({
-          component,
-          passed: false,
-          error: lastError || 'Unknown error',
-          baselinePath,
-          latestPath,
-          diffPath,
-        });
-        console.log(`  ✗ ${component} - ${lastError}`);
-        continue;
-      }
-
-      if (compareResult.match) {
-        results.push({
-          component,
-          passed: true,
-          diffPercentage: 0,
-          baselinePath,
-          latestPath,
-        });
-        console.log(`  ✓ ${component}`);
-        // Clean up diff if passed
-        if (fs.existsSync(diffPath)) fs.unlinkSync(diffPath);
-      } else {
-        results.push({
-          component,
-          passed: false,
-          diffPercentage: compareResult.diffPercentage,
-          baselinePath,
-          latestPath,
-          diffPath,
-        });
-        console.log(
-          `  ✗ ${component} - ${(compareResult.diffPercentage * 100).toFixed(2)}% diff`,
-        );
-      }
-    }
-
-    // Summary
-    const passed = results.filter((r) => r.passed).length;
-    const failed = results.filter((r) => !r.passed).length;
-
-    console.log(`\n${'─'.repeat(40)}`);
-    console.log(`Results: ${passed} passed, ${failed} failed`);
-
-    // Generate HTML report
-    const reportResults: ReportTestResult[] = results.map((r) => ({
-      ...r,
+    // Initial test run
+    let results = await runTestCycle(
+      config,
       platform,
-    }));
+      components,
+      server,
+      baselineDir,
+      diffDir,
+      latestDir,
+    );
 
-    const reportPath = generateHtmlReport({
-      outputDir: config.baselines,
-      results: reportResults,
-      threshold: config.threshold,
-    });
+    const allPassed = printSummary(results, platform, config, diffDir);
 
-    console.log(`\nReport: file://${reportPath}`);
+    if (watchMode) {
+      console.log('\nWatching for changes... (Ctrl+C to exit)\n');
 
-    if (failed > 0) {
-      console.log(`Diff images saved to: ${diffDir}`);
+      const watcher = createWatcher({
+        paths: [config.registry, path.dirname(config.registry)],
+        onChange: async (changedFile) => {
+          console.log(`\n[watch] File changed: ${path.basename(changedFile)}`);
+          console.log('Re-running tests...\n');
+
+          results = await runTestCycle(
+            config,
+            platform,
+            components,
+            server,
+            baselineDir,
+            diffDir,
+            latestDir,
+          );
+
+          printSummary(results, platform, config, diffDir);
+          console.log('\nWatching for changes... (Ctrl+C to exit)\n');
+        },
+      });
+
+      // Keep process alive
+      await new Promise<void>((resolve) => {
+        process.on('SIGINT', () => {
+          console.log('\nStopping watch mode...');
+          watcher.close();
+          resolve();
+        });
+      });
+    } else if (!allPassed) {
       process.exit(1);
     }
   } finally {

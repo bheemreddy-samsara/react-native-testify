@@ -89,6 +89,7 @@ Options:
   --all             Target both iOS and Android (parallel)
   --parallel        Run tests in parallel on multiple devices
   --filter <pattern> Filter components by glob pattern
+  --watch, -w       Watch mode - re-run tests on file changes
   --config <path>   Path to config file
   --help, -h        Show this help
   --version, -v     Show version
@@ -103,6 +104,7 @@ Examples:
   testify test --ios --filter "Button_*"
   testify record --ios --filter "Card_*,Badge_*"
   testify test --ios --filter "!*_Disabled"
+  testify test --ios --watch            # Watch mode
 `);
 }
 
