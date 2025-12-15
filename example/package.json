@@ -9,15 +9,15 @@
     "start": "react-native start",
     "start:testify": "react-native start --entry index.testify.js",
     "test": "jest",
-    "testify:record": "bun ../cli/index.ts record --ios",
-    "testify:test": "bun ../cli/index.ts test --ios"
+    "testify:record": "bunx testify record --ios",
+    "testify:test": "bunx testify test --ios"
   },
   "dependencies": {
     "react": "19.2.0",
     "react-native": "0.83.0",
     "@react-native/new-app-screen": "0.83.0",
     "react-native-safe-area-context": "^5.5.2",
-    "@samsara-dev/react-native-testify": "file:.."
+    "@samsara-dev/react-native-testify": "^0.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
