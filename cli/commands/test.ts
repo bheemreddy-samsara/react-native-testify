@@ -3,9 +3,8 @@ import * as path from 'node:path';
 import { type CompareResult, compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
 import {
-  cleanup,
+  cleanupStatusBar,
   launchSimulator,
-  sanitizeFilename,
   takeScreenshot,
 } from '../device/ios';
 import { filterComponents, parseFilterArg } from '../filter';
@@ -46,7 +45,8 @@ async function runTestCycle(
     platform === 'ios' ? config.ios.bundleId : config.android.packageName;
 
   for (const component of components) {
-    const safeFilename = sanitizeFilename(component);
+    // Sanitize component name for filename (replace / with -)
+    const safeFilename = component.replace(/\//g, '-');
     const baselinePath = path.join(baselineDir, `${safeFilename}.png`);
     const latestPath = path.join(latestDir, `${safeFilename}.png`);
     const diffPath = path.join(diffDir, `${safeFilename}.png`);
@@ -181,11 +181,9 @@ export async function runTest(config: TestifyConfig, args: string[]) {
   const server = createServer(config.port);
   await server.start();
 
-  let deviceId: string | undefined;
-
   try {
     console.log('Launching simulator...');
-    deviceId = await launchSimulator(config, platform);
+    await launchSimulator(config, platform);
 
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
@@ -259,7 +257,7 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       process.exit(1);
     }
   } finally {
-    await cleanup(platform, deviceId);
+    await cleanupStatusBar(platform);
     server.stop();
   }
 }

@@ -2,9 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { TestifyConfig } from '../config';
 import {
-  cleanup,
+  cleanupStatusBar,
   launchSimulator,
-  sanitizeFilename,
   takeScreenshot,
 } from '../device/ios';
 import { filterComponents, parseFilterArg } from '../filter';
@@ -25,12 +24,10 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
   const server = createServer(config.port);
   await server.start();
 
-  let deviceId: string | undefined;
-
   try {
     // Launch simulator with test harness
     console.log('Launching simulator...');
-    deviceId = await launchSimulator(config, platform);
+    await launchSimulator(config, platform);
 
     // Wait for app to connect
     console.log('Waiting for app connection...');
@@ -59,7 +56,7 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
       await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
       // Take screenshot (sanitize component name for filename)
-      const safeFilename = sanitizeFilename(component);
+      const safeFilename = component.replace(/\//g, '-');
       const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
       const bundleId =
         platform === 'ios' ? config.ios.bundleId : config.android.packageName;
@@ -70,7 +67,7 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
 
     console.log(`\nRecorded ${components.length} baselines to ${baselineDir}`);
   } finally {
-    await cleanup(platform, deviceId);
+    await cleanupStatusBar(platform);
     server.stop();
   }
 }

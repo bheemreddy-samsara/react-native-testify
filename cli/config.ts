@@ -21,6 +21,10 @@ const AndroidConfigSchema = z.object({
   viewport: ViewportSchema.optional(),
 });
 
+const StatusBarConfigSchema = z.object({
+  freeze: z.boolean().default(true),
+});
+
 const PolyfillsConfigSchema = z.union([
   z.literal('auto'),
   z.object({
@@ -46,6 +50,7 @@ const TestifyConfigSchema = z.object({
   retryDelayMs: z.number().int().positive().default(1000),
   ios: IosConfigSchema.default({}),
   android: AndroidConfigSchema.default({}),
+  statusBar: StatusBarConfigSchema.default({}),
   polyfills: PolyfillsConfigSchema.optional(),
   aliases: AliasesConfigSchema.optional(),
   gitLfs: z.boolean().default(false),
@@ -55,6 +60,7 @@ const TestifyConfigSchema = z.object({
 export type TestifyConfig = z.infer<typeof TestifyConfigSchema>;
 export type IosConfig = z.infer<typeof IosConfigSchema>;
 export type AndroidConfig = z.infer<typeof AndroidConfigSchema>;
+export type StatusBarConfig = z.infer<typeof StatusBarConfigSchema>;
 export type PolyfillsConfig = z.infer<typeof PolyfillsConfigSchema>;
 export type AliasesConfig = z.infer<typeof AliasesConfigSchema>;
 export type Viewport = z.infer<typeof ViewportSchema>;

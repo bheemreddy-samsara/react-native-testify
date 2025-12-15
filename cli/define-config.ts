@@ -22,6 +22,9 @@ export function defineConfig(config: {
     packageName?: string;
     viewport?: { width: number; height: number };
   };
+  statusBar?: {
+    freeze?: boolean;
+  };
   polyfills?:
     | 'auto'
     | {
