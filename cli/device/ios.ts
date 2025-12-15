@@ -23,6 +23,129 @@ async function exec(cmd: string, args: string[]): Promise<string> {
   });
 }
 
+export async function freezeStatusBar(deviceId: string): Promise<void> {
+  await exec('xcrun', [
+    'simctl',
+    'status_bar',
+    deviceId,
+    'override',
+    '--time',
+    '9:41',
+    '--batteryState',
+    'charged',
+    '--batteryLevel',
+    '100',
+    '--wifiBars',
+    '3',
+    '--cellularBars',
+    '4',
+  ]);
+}
+
+export async function clearStatusBar(deviceId: string): Promise<void> {
+  try {
+    await exec('xcrun', ['simctl', 'status_bar', deviceId, 'clear']);
+  } catch {
+    // Ignore errors if clear fails
+  }
+}
+
+export async function enterAndroidDemoMode(): Promise<void> {
+  await exec('adb', [
+    'shell',
+    'settings',
+    'put',
+    'global',
+    'sysui_demo_allowed',
+    '1',
+  ]);
+
+  await exec('adb', [
+    'shell',
+    'am',
+    'broadcast',
+    '-a',
+    'com.android.systemui.demo',
+    '-e',
+    'command',
+    'clock',
+    '-e',
+    'hhmm',
+    '1200',
+  ]);
+
+  await exec('adb', [
+    'shell',
+    'am',
+    'broadcast',
+    '-a',
+    'com.android.systemui.demo',
+    '-e',
+    'command',
+    'network',
+    '-e',
+    'mobile',
+    'show',
+    '-e',
+    'level',
+    '4',
+    '-e',
+    'datatype',
+    '4g',
+    '-e',
+    'wifi',
+    'false',
+  ]);
+
+  await exec('adb', [
+    'shell',
+    'am',
+    'broadcast',
+    '-a',
+    'com.android.systemui.demo',
+    '-e',
+    'command',
+    'notifications',
+    '-e',
+    'visible',
+    'false',
+  ]);
+
+  await exec('adb', [
+    'shell',
+    'am',
+    'broadcast',
+    '-a',
+    'com.android.systemui.demo',
+    '-e',
+    'command',
+    'battery',
+    '-e',
+    'plugged',
+    'false',
+    '-e',
+    'level',
+    '100',
+  ]);
+}
+
+export async function exitAndroidDemoMode(): Promise<void> {
+  try {
+    await exec('adb', [
+      'shell',
+      'am',
+      'broadcast',
+      '-a',
+      'com.android.systemui.demo',
+      '-e',
+      'command',
+      'exit',
+    ]);
+  } catch {
+    // Ignore errors if exit fails
+  }
+}
+
 export async function bootSimulator(deviceName: string): Promise<string> {
   // Get device UDID from name
   const devicesJson = await exec('xcrun', [
@@ -62,9 +185,12 @@ export async function bootSimulator(deviceName: string): Promise<string> {
 export async function launchSimulator(
   config: TestifyConfig,
   platform: string,
-): Promise<void> {
+): Promise<string> {
   if (platform === 'ios') {
     const deviceId = await bootSimulator(config.ios.simulator);
+
+    // Freeze status bar for consistent screenshots
+    await freezeStatusBar(deviceId);
 
     // Get bundle ID from installed apps or use default
     const bundleId =
@@ -77,23 +203,30 @@ export async function launchSimulator(
       // App might not be running, ignore
     }
 
-    // Launch the app
-    await exec('xcrun', ['simctl', 'launch', deviceId, bundleId]);
+    // Launch the app with -TESTIFY flag
+    await exec('xcrun', ['simctl', 'launch', deviceId, bundleId, '-TESTIFY']);
 
     // Wait for app to be ready
-    await new Promise((r) => setTimeout(r, 2000));
-  } else {
-    // Android: adb -s <emulator> shell am start -n <package>/<activity>
-    const packageName = config.android.packageName || 'com.testifyexample';
-    await exec('adb', [
-      'shell',
-      'am',
-      'start',
-      '-n',
-      `${packageName}/.MainActivity`,
-    ]);
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
+
+    return deviceId;
   }
+
+  // Enter Android demo mode for consistent status bar
+  await enterAndroidDemoMode();
+
+  // Android: adb shell am start -n <package>/<activity>
+  const packageName = config.android.packageName || 'com.testifyexample';
+  await exec('adb', [
+    'shell',
+    'am',
+    'start',
+    '-n',
+    `${packageName}/.MainActivity`,
+  ]);
+  await new Promise((r) => setTimeout(r, 3000));
+
+  return 'android';
 }
 
 export function getDeviceId(deviceName: string): Promise<string> {
@@ -172,4 +305,19 @@ export async function startMetro(entryFile: string): Promise<void> {
     stdio: 'inherit',
     detached: true,
   });
+}
+
+export async function cleanup(
+  platform: string,
+  deviceId?: string,
+): Promise<void> {
+  if (platform === 'ios' && deviceId) {
+    await clearStatusBar(deviceId);
+  } else if (platform === 'android') {
+    await exitAndroidDemoMode();
+  }
+}
+
+export function sanitizeFilename(component: string): string {
+  return component.replace(/\//g, '-');
 }

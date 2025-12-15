@@ -2,7 +2,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type CompareResult, compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
-import { launchSimulator, takeScreenshot } from '../device/ios';
+import {
+  cleanup,
+  launchSimulator,
+  sanitizeFilename,
+  takeScreenshot,
+} from '../device/ios';
 import { filterComponents, parseFilterArg } from '../filter';
 import {
   type TestResult as ReportTestResult,
@@ -41,9 +46,10 @@ async function runTestCycle(
     platform === 'ios' ? config.ios.bundleId : config.android.packageName;
 
   for (const component of components) {
-    const baselinePath = path.join(baselineDir, `${component}.png`);
-    const latestPath = path.join(latestDir, `${component}.png`);
-    const diffPath = path.join(diffDir, `${component}.png`);
+    const safeFilename = sanitizeFilename(component);
+    const baselinePath = path.join(baselineDir, `${safeFilename}.png`);
+    const latestPath = path.join(latestDir, `${safeFilename}.png`);
+    const diffPath = path.join(diffDir, `${safeFilename}.png`);
 
     if (!fs.existsSync(baselinePath)) {
       results.push({
@@ -161,6 +167,7 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     ? 'android'
     : 'ios';
   const watchMode = parseWatchArg(args);
+  const filterPattern = parseFilterArg(args);
 
   console.log(`Running visual tests for ${platform}...`);
 
@@ -174,15 +181,16 @@ export async function runTest(config: TestifyConfig, args: string[]) {
   const server = createServer(config.port);
   await server.start();
 
+  let deviceId: string | undefined;
+
   try {
     console.log('Launching simulator...');
-    await launchSimulator(config, platform);
+    deviceId = await launchSimulator(config, platform);
 
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
     const allComponents = await server.getComponentList();
-    const filterPattern = parseFilterArg(args);
     const components = filterComponents(allComponents, filterPattern);
 
     if (filterPattern) {
@@ -215,10 +223,19 @@ export async function runTest(config: TestifyConfig, args: string[]) {
           console.log(`\n[watch] File changed: ${path.basename(changedFile)}`);
           console.log('Re-running tests...\n');
 
+          // Re-fetch component list to pick up registry changes
+          const refreshedAllComponents = await server.getComponentList();
+          const refreshedComponents = filterComponents(
+            refreshedAllComponents,
+            filterPattern,
+          );
+
+          console.log(`Testing ${refreshedComponents.length} components\n`);
+
           results = await runTestCycle(
             config,
             platform,
-            components,
+            refreshedComponents,
             server,
             baselineDir,
             diffDir,
@@ -242,6 +259,7 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       process.exit(1);
     }
   } finally {
+    await cleanup(platform, deviceId);
     server.stop();
   }
 }

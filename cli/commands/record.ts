@@ -1,12 +1,19 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { TestifyConfig } from '../config';
-import { launchSimulator, takeScreenshot } from '../device/ios';
+import {
+  cleanup,
+  launchSimulator,
+  sanitizeFilename,
+  takeScreenshot,
+} from '../device/ios';
 import { filterComponents, parseFilterArg } from '../filter';
 import { createServer } from '../server';
 
 export async function runRecord(config: TestifyConfig, args: string[]) {
-  const platform = args.includes('--android') ? 'android' : 'ios';
+  const platform: 'ios' | 'android' = args.includes('--android')
+    ? 'android'
+    : 'ios';
 
   console.log(`Recording baselines for ${platform}...`);
 
@@ -18,10 +25,12 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
   const server = createServer(config.port);
   await server.start();
 
+  let deviceId: string | undefined;
+
   try {
     // Launch simulator with test harness
     console.log('Launching simulator...');
-    await launchSimulator(config, platform);
+    deviceId = await launchSimulator(config, platform);
 
     // Wait for app to connect
     console.log('Waiting for app connection...');
@@ -49,8 +58,9 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
       // Wait for render stabilization
       await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
-      // Take screenshot
-      const screenshotPath = path.join(baselineDir, `${component}.png`);
+      // Take screenshot (sanitize component name for filename)
+      const safeFilename = sanitizeFilename(component);
+      const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
       const bundleId =
         platform === 'ios' ? config.ios.bundleId : config.android.packageName;
       await takeScreenshot(platform, screenshotPath, bundleId);
@@ -60,6 +70,7 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
 
     console.log(`\nRecorded ${components.length} baselines to ${baselineDir}`);
   } finally {
+    await cleanup(platform, deviceId);
     server.stop();
   }
 }
