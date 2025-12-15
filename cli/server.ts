@@ -1,36 +1,39 @@
-type MessageHandler = (ws: unknown, data: Record<string, unknown>) => void;
+export interface IdleDetectionConfig {
+  enabled: boolean;
+  timeoutMs: number;
+  debounceMs: number;
+}
+
+export interface AppConfig {
+  idleDetection?: IdleDetectionConfig;
+  defaultWaitMs?: number;
+}
+
+const DEFAULT_MESSAGE_TIMEOUT_MS = 30_000;
+const MOUNT_TIMEOUT_PADDING_MS = 5_000;
 
 interface TestifyServer {
   start(): Promise<void>;
   stop(): void;
   waitForConnection(timeout: number): Promise<void>;
+  sendConfig(config: AppConfig): void;
   getComponentList(): Promise<string[]>;
   mountComponent(name: string): Promise<void>;
   unmountComponent(): Promise<void>;
 }
 
-interface Client {
-  ws: unknown;
-  platform: 'ios' | 'android' | 'unknown';
-  isReady: boolean;
-  readyResolver: (() => void) | null;
-  messageHandlers: Map<string, (data: Record<string, unknown>) => void>;
-}
-
 export function createServer(port: number): TestifyServer {
   let server: unknown = null;
-  const clients: Map<string, Client> = new Map();
-
-  // Legacy single-client support
   let connectedClient: unknown = null;
   let isReady = false;
   let readyResolver: (() => void) | null = null;
+  let lastConfig: AppConfig | null = null;
   const messageHandlers: Map<string, (data: Record<string, unknown>) => void> =
     new Map();
 
   const waitForMessage = (
     type: string,
-    timeout = 30000,
+    timeout = DEFAULT_MESSAGE_TIMEOUT_MS,
   ): Promise<Record<string, unknown>> => {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -56,6 +59,29 @@ export function createServer(port: number): TestifyServer {
         JSON.stringify(data),
       );
     }
+  };
+
+  const getMountTimeoutMs = (): number => {
+    let timeout = DEFAULT_MESSAGE_TIMEOUT_MS;
+    const idleDetection = lastConfig?.idleDetection;
+
+    if (idleDetection?.enabled) {
+      timeout = Math.max(
+        timeout,
+        idleDetection.timeoutMs +
+          idleDetection.debounceMs +
+          MOUNT_TIMEOUT_PADDING_MS,
+      );
+    }
+
+    if (typeof lastConfig?.defaultWaitMs === 'number') {
+      timeout = Math.max(
+        timeout,
+        lastConfig.defaultWaitMs + MOUNT_TIMEOUT_PADDING_MS,
+      );
+    }
+
+    return timeout;
   };
 
   return {
@@ -143,6 +169,11 @@ export function createServer(port: number): TestifyServer {
       });
     },
 
+    sendConfig(config: AppConfig) {
+      lastConfig = config;
+      sendToClient({ type: 'configure', ...config });
+    },
+
     async getComponentList(): Promise<string[]> {
       sendToClient({ type: 'list' });
       const response = await waitForMessage('components');
@@ -151,7 +182,7 @@ export function createServer(port: number): TestifyServer {
 
     async mountComponent(name: string) {
       sendToClient({ type: 'mount', component: name });
-      await waitForMessage('mounted');
+      await waitForMessage('mounted', getMountTimeoutMs());
     },
 
     async unmountComponent() {

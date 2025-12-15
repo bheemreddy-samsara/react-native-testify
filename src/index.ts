@@ -1,6 +1,20 @@
 export { TestifyApp } from './TestifyApp';
+export type { IdleDetectionConfig } from './TestifyApp';
 export { IdleScreen } from './IdleScreen';
 export { createRegistry } from './registry';
+export { defineConfig } from './config';
+export type {
+  AliasesConfig,
+  PolyfillsConfig,
+  TestifyUserConfig,
+  Viewport,
+} from './config';
+export {
+  waitForIdle,
+  waitForRenderComplete,
+  createIdleCallback,
+} from './idleDetection';
+export type { IdleDetectionOptions } from './idleDetection';
 export type {
   Registry,
   ComponentRenderer,
@@ -11,32 +25,9 @@ export type {
   ProviderConfig,
   StoreFactory,
 } from './registry';
-export type { ConnectionStatus, Platform } from './connection';
-
-// Config helper for typed config files
-export function defineConfig(config: {
-  entry?: string;
-  registry?: string;
-  baselines?: string;
-  threshold?: number;
-  port?: number;
-  defaultWaitMs?: number;
-  retryCount?: number;
-  retryDelayMs?: number;
-  gitLfs?: boolean;
-  baselineStorage?: 'local' | 's3' | 'gcs';
-  ios?: {
-    simulator?: string;
-    scheme?: string;
-    workspace?: string;
-    viewport?: { width: number; height: number };
-  };
-  android?: {
-    emulator?: string;
-    packageName?: string;
-    viewport?: { width: number; height: number };
-  };
-}) {
-  return config;
-}
+export type {
+  ConnectionStatus,
+  Platform,
+  IdleDetectionConfig as ConnectionIdleConfig,
+} from './connection';
 export type { TestifyConnection, TestifyMessage } from './connection';

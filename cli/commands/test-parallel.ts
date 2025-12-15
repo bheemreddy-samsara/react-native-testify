@@ -33,6 +33,12 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
     console.log('Waiting for apps to connect...');
     await server.waitForClients(platforms, 60000);
 
+    // Send configuration to all apps
+    server.sendConfigToAll({
+      idleDetection: config.idleDetection,
+      defaultWaitMs: config.defaultWaitMs,
+    });
+
     // Get component list
     const components = await server.getComponentList();
     console.log(
@@ -43,11 +49,10 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
     for (const component of components) {
       console.log(`\n┌─ ${component}`);
 
+      const safeFilename = component.replace(/\//g, '-');
+
       // Mount on all platforms simultaneously
       await server.mountComponentOnAll(component);
-
-      // Wait for render stabilization
-      await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
       // Take screenshots on all platforms in parallel
       const screenshotPromises = platforms.map(async (platform) => {
@@ -58,12 +63,16 @@ export async function runParallelTest(config: TestifyConfig, args: string[]) {
         fs.mkdirSync(latestDir, { recursive: true });
         fs.mkdirSync(diffDir, { recursive: true });
 
-        const baselinePath = path.join(baselineDir, `${component}.png`);
-        const latestPath = path.join(latestDir, `${component}.png`);
-        const diffPath = path.join(diffDir, `${component}.png`);
+        const baselinePath = path.join(baselineDir, `${safeFilename}.png`);
+        const latestPath = path.join(latestDir, `${safeFilename}.png`);
+        const diffPath = path.join(diffDir, `${safeFilename}.png`);
 
         try {
-          await takeScreenshot(platform, latestPath);
+          const bundleId =
+            platform === 'ios'
+              ? config.ios.bundleId
+              : config.android.packageName;
+          await takeScreenshot(platform, latestPath, bundleId);
 
           if (!fs.existsSync(baselinePath)) {
             results.push({

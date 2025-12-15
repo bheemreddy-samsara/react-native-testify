@@ -40,7 +40,7 @@ export async function compareImages(
     diff.data,
     width,
     height,
-    { threshold: 0.1 },
+    { threshold },
   );
 
   const totalPixels = width * height;

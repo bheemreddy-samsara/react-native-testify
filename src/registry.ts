@@ -29,6 +29,7 @@ export interface RegistryOptions {
 export interface ResolvedComponent {
   render: ComponentRenderer;
   waitMs: number;
+  usesDefaultWaitMs?: boolean;
   waitFor?: () => Promise<void>;
   freshStore?: boolean;
 }
@@ -68,6 +69,7 @@ export function createRegistry(
         return {
           render: entry.render,
           waitMs: entry.waitMs ?? defaultWaitMs,
+          usesDefaultWaitMs: entry.waitMs === undefined,
           waitFor: entry.waitFor,
           freshStore: entry.freshStore,
         };
@@ -76,6 +78,7 @@ export function createRegistry(
       return {
         render: entry,
         waitMs: defaultWaitMs,
+        usesDefaultWaitMs: true,
       };
     },
 

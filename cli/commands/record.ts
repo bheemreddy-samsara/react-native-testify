@@ -33,6 +33,12 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
+    // Send configuration to app
+    server.sendConfig({
+      idleDetection: config.idleDetection,
+      defaultWaitMs: config.defaultWaitMs,
+    });
+
     // Get component list from app and apply filter
     const allComponents = await server.getComponentList();
     const filterPattern = parseFilterArg(args);
@@ -51,9 +57,6 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
       console.log(`  Recording: ${component}`);
 
       await server.mountComponent(component);
-
-      // Wait for render stabilization
-      await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
       // Take screenshot (sanitize component name for filename)
       const safeFilename = component.replace(/\//g, '-');

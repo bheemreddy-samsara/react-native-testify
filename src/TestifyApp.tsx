@@ -13,12 +13,20 @@ import {
   type Platform as TestifyPlatform,
   createConnection,
 } from './connection';
+import { waitForRenderComplete } from './idleDetection';
 import type { ProviderConfig, Registry, ResolvedComponent } from './registry';
+
+export interface IdleDetectionConfig {
+  enabled?: boolean;
+  timeoutMs?: number;
+  debounceMs?: number;
+}
 
 interface TestifyAppProps {
   registry: Registry;
   port?: number;
   platform?: TestifyPlatform;
+  idleDetection?: IdleDetectionConfig;
 }
 
 interface MountState {
@@ -32,16 +40,29 @@ export function TestifyApp({
   registry,
   port = 8089,
   platform,
+  idleDetection = {},
 }: TestifyAppProps) {
   // Auto-detect platform if not provided
   const detectedPlatform: TestifyPlatform =
     platform || (Platform.OS === 'ios' ? 'ios' : 'android');
+
+  // Idle detection config - can be updated via CLI configure message
+  const [idleConfig, setIdleConfig] = useState({
+    enabled: idleDetection.enabled ?? true,
+    timeoutMs: idleDetection.timeoutMs ?? 5000,
+    debounceMs: idleDetection.debounceMs ?? 100,
+  });
+
+  const [defaultWaitMsOverride, setDefaultWaitMsOverride] = useState<
+    number | undefined
+  >();
 
   const [mountState, setMountState] = useState<MountState | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'disconnected'
   >('connecting');
   const connectionRef = useRef(createConnection(port, detectedPlatform));
+  const messageHandlerRef = useRef<(message: TestifyMessage) => void>();
 
   const handleMount = useCallback(
     async (componentName: string) => {
@@ -68,15 +89,35 @@ export function TestifyApp({
           await resolved.waitFor();
         }
 
-        // Wait for render stabilization
-        await new Promise((resolve) => setTimeout(resolve, resolved.waitMs));
+        let waitMsUsed = 0;
+
+        // Use idle detection or fall back to fixed wait time
+        if (idleConfig.enabled) {
+          await waitForRenderComplete({
+            timeoutMs: idleConfig.timeoutMs,
+            debounceMs: idleConfig.debounceMs,
+          });
+        } else {
+          const shouldOverrideDefaultWait =
+            resolved.usesDefaultWaitMs &&
+            registry.options.defaultWaitMs === undefined &&
+            typeof defaultWaitMsOverride === 'number';
+
+          const waitMs = shouldOverrideDefaultWait
+            ? defaultWaitMsOverride
+            : resolved.waitMs;
+
+          waitMsUsed = waitMs;
+
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+        }
 
         setMountState((prev) => (prev ? { ...prev, status: 'ready' } : null));
 
         connectionRef.current.send({
           type: 'mounted',
           component: componentName,
-          waitMs: resolved.waitMs,
+          waitMs: waitMsUsed,
         });
       } catch (err) {
         const errorMessage =
@@ -90,12 +131,32 @@ export function TestifyApp({
         });
       }
     },
-    [registry],
+    [
+      registry,
+      idleConfig.enabled,
+      idleConfig.timeoutMs,
+      idleConfig.debounceMs,
+      defaultWaitMsOverride,
+    ],
   );
 
-  const handleMessage = useCallback(
+  // Keep message handler in ref to avoid reconnection on config changes
+  messageHandlerRef.current = useCallback(
     (message: TestifyMessage) => {
       switch (message.type) {
+        case 'configure':
+          if (message.idleDetection) {
+            setIdleConfig({
+              enabled: message.idleDetection.enabled,
+              timeoutMs: message.idleDetection.timeoutMs,
+              debounceMs: message.idleDetection.debounceMs,
+            });
+          }
+          if (typeof message.defaultWaitMs === 'number') {
+            setDefaultWaitMsOverride(message.defaultWaitMs);
+          }
+          break;
+
         case 'mount':
           if (message.component) {
             handleMount(message.component);
@@ -122,10 +183,13 @@ export function TestifyApp({
     [registry, handleMount],
   );
 
+  // Connection effect - stable, doesn't depend on handler
   useEffect(() => {
     const connection = connectionRef.current;
 
-    connection.onMessage(handleMessage);
+    connection.onMessage((message) => {
+      messageHandlerRef.current?.(message);
+    });
     connection.onStatusChange?.((status) => {
       setConnectionStatus(status);
     });
@@ -134,7 +198,7 @@ export function TestifyApp({
     return () => {
       connection.disconnect();
     };
-  }, [handleMessage]);
+  }, []);
 
   // Show idle screen when no component mounted
   if (!mountState) {
