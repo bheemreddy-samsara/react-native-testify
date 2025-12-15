@@ -51,9 +51,11 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     console.log(`Testing ${components.length} components\n`);
 
     for (const component of components) {
-      const baselinePath = path.join(baselineDir, `${component}.png`);
-      const latestPath = path.join(latestDir, `${component}.png`);
-      const diffPath = path.join(diffDir, `${component}.png`);
+      // Sanitize component name for filename (replace / with -)
+      const safeFilename = component.replace(/\//g, '-');
+      const baselinePath = path.join(baselineDir, `${safeFilename}.png`);
+      const latestPath = path.join(latestDir, `${safeFilename}.png`);
+      const diffPath = path.join(diffDir, `${safeFilename}.png`);
 
       // Check baseline exists
       if (!fs.existsSync(baselinePath)) {

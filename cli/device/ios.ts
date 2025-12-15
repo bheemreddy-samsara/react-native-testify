@@ -23,6 +23,87 @@ async function exec(cmd: string, args: string[]): Promise<string> {
   });
 }
 
+/**
+ * Freeze the status bar to consistent values for reproducible screenshots.
+ * Sets time to 9:41, full battery, full signal bars.
+ */
+export async function freezeStatusBar(deviceId: string): Promise<void> {
+  await exec('xcrun', [
+    'simctl', 'status_bar', deviceId, 'override',
+    '--time', '9:41',
+    '--batteryState', 'charged',
+    '--batteryLevel', '100',
+    '--wifiBars', '3',
+    '--cellularBars', '4',
+  ]);
+}
+
+/**
+ * Clear iOS status bar overrides (restore to live values).
+ */
+export async function clearStatusBar(deviceId: string): Promise<void> {
+  try {
+    await exec('xcrun', ['simctl', 'status_bar', deviceId, 'clear']);
+  } catch {
+    // Ignore errors if clear fails
+  }
+}
+
+/**
+ * Enter Android demo mode for consistent status bar in screenshots.
+ * Sets time to 12:00, full battery, full signal, no notifications.
+ */
+export async function enterAndroidDemoMode(): Promise<void> {
+  // Enable demo mode
+  await exec('adb', ['shell', 'settings', 'put', 'global', 'sysui_demo_allowed', '1']);
+  
+  // Set time to 12:00
+  await exec('adb', ['shell', 'am', 'broadcast', 
+    '-a', 'com.android.systemui.demo',
+    '-e', 'command', 'clock',
+    '-e', 'hhmm', '1200'
+  ]);
+  
+  // Full mobile signal with 4G, no wifi
+  await exec('adb', ['shell', 'am', 'broadcast',
+    '-a', 'com.android.systemui.demo',
+    '-e', 'command', 'network',
+    '-e', 'mobile', 'show',
+    '-e', 'level', '4',
+    '-e', 'datatype', '4g',
+    '-e', 'wifi', 'false'
+  ]);
+  
+  // Hide notifications
+  await exec('adb', ['shell', 'am', 'broadcast',
+    '-a', 'com.android.systemui.demo',
+    '-e', 'command', 'notifications',
+    '-e', 'visible', 'false'
+  ]);
+  
+  // Full battery, not charging
+  await exec('adb', ['shell', 'am', 'broadcast',
+    '-a', 'com.android.systemui.demo',
+    '-e', 'command', 'battery',
+    '-e', 'plugged', 'false',
+    '-e', 'level', '100'
+  ]);
+}
+
+/**
+ * Exit Android demo mode (restore live status bar).
+ */
+export async function exitAndroidDemoMode(): Promise<void> {
+  try {
+    await exec('adb', ['shell', 'am', 'broadcast',
+      '-a', 'com.android.systemui.demo',
+      '-e', 'command', 'exit'
+    ]);
+  } catch {
+    // Ignore errors if exit fails
+  }
+}
+
 export async function bootSimulator(deviceName: string): Promise<string> {
   // Get device UDID from name
   const devicesJson = await exec('xcrun', [
@@ -66,6 +147,9 @@ export async function launchSimulator(
   if (platform === 'ios') {
     const deviceId = await bootSimulator(config.ios.simulator);
 
+    // Freeze status bar for consistent screenshots (time=9:41, full battery/signal)
+    await freezeStatusBar(deviceId);
+
     // Get bundle ID from installed apps or use default
     const bundleId =
       config.ios.bundleId || 'org.reactjs.native.example.TestifyExample';
@@ -77,13 +161,16 @@ export async function launchSimulator(
       // App might not be running, ignore
     }
 
-    // Launch the app
-    await exec('xcrun', ['simctl', 'launch', deviceId, bundleId]);
+    // Launch the app with -TESTIFY flag to load testify bundle
+    await exec('xcrun', ['simctl', 'launch', deviceId, bundleId, '-TESTIFY']);
 
     // Wait for app to be ready
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
   } else {
-    // Android: adb -s <emulator> shell am start -n <package>/<activity>
+    // Enter Android demo mode for consistent status bar (time=12:00, full battery/signal)
+    await enterAndroidDemoMode();
+
+    // Android: adb shell am start -n <package>/<activity>
     const packageName = config.android.packageName || 'com.testifyexample';
     await exec('adb', [
       'shell',
@@ -92,7 +179,7 @@ export async function launchSimulator(
       '-n',
       `${packageName}/.MainActivity`,
     ]);
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
   }
 }
 
