@@ -1,7 +1,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { TestifyConfig } from '../config';
-import { launchSimulator, takeScreenshot } from '../device/ios';
+import {
+  cleanupStatusBar,
+  launchSimulator,
+  takeScreenshot,
+} from '../device/ios';
 import { createServer } from '../server';
 
 export async function runRecord(config: TestifyConfig, args: string[]) {
@@ -39,9 +43,8 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
       // Wait for render stabilization
       await new Promise((r) => setTimeout(r, config.defaultWaitMs));
 
-      // Take screenshot (sanitize component name for filename)
-      const safeFilename = component.replace(/\//g, '-');
-      const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
+      // Take screenshot
+      const screenshotPath = path.join(baselineDir, `${component}.png`);
       const bundleId =
         platform === 'ios' ? config.ios.bundleId : config.android.packageName;
       await takeScreenshot(platform, screenshotPath, bundleId);
@@ -51,6 +54,7 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
 
     console.log(`\nRecorded ${components.length} baselines to ${baselineDir}`);
   } finally {
+    await cleanupStatusBar(platform);
     server.stop();
   }
 }
