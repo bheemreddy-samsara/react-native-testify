@@ -88,6 +88,7 @@ Options:
   --android         Target Android emulator
   --all             Target both iOS and Android (parallel)
   --parallel        Run tests in parallel on multiple devices
+  --filter <pattern> Filter components by glob pattern
   --config <path>   Path to config file
   --help, -h        Show this help
   --version, -v     Show version
@@ -99,6 +100,9 @@ Examples:
   testify test --all              # Parallel iOS + Android
   testify test --parallel --ios --android
   testify update Button_Primary --ios
+  testify test --ios --filter "Button_*"
+  testify record --ios --filter "Card_*,Badge_*"
+  testify test --ios --filter "!*_Disabled"
 `);
 }
 

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { type CompareResult, compareImages } from '../compare';
 import type { TestifyConfig } from '../config';
 import { launchSimulator, takeScreenshot } from '../device/ios';
+import { filterComponents, parseFilterArg } from '../filter';
 import {
   type TestResult as ReportTestResult,
   generateHtmlReport,
@@ -46,9 +47,18 @@ export async function runTest(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
-    // Get component list
-    const components = await server.getComponentList();
-    console.log(`Testing ${components.length} components\n`);
+    // Get component list and apply filter
+    const allComponents = await server.getComponentList();
+    const filterPattern = parseFilterArg(args);
+    const components = filterComponents(allComponents, filterPattern);
+
+    if (filterPattern) {
+      console.log(
+        `Testing ${components.length} of ${allComponents.length} components (filter: ${filterPattern})\n`,
+      );
+    } else {
+      console.log(`Testing ${components.length} components\n`);
+    }
 
     for (const component of components) {
       const baselinePath = path.join(baselineDir, `${component}.png`);
@@ -73,7 +83,8 @@ export async function runTest(config: TestifyConfig, args: string[]) {
       let compareResult: CompareResult | null = null;
       let lastError: string | null = null;
 
-      const bundleId = platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+      const bundleId =
+        platform === 'ios' ? config.ios.bundleId : config.android.packageName;
 
       for (let attempt = 0; attempt <= config.retryCount; attempt++) {
         try {

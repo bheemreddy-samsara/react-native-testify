@@ -96,6 +96,10 @@ export async function launchSimulator(
   }
 }
 
+export function getDeviceId(deviceName: string): Promise<string> {
+  return bootSimulator(deviceName);
+}
+
 // Cache the device ID to avoid repeated lookups
 let cachedDeviceId: string | null = null;
 

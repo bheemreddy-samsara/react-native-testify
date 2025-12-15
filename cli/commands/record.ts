@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { TestifyConfig } from '../config';
 import { launchSimulator, takeScreenshot } from '../device/ios';
+import { filterComponents, parseFilterArg } from '../filter';
 import { createServer } from '../server';
 
 export async function runRecord(config: TestifyConfig, args: string[]) {
@@ -26,9 +27,18 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
     console.log('Waiting for app connection...');
     await server.waitForConnection(60000);
 
-    // Get component list from app
-    const components = await server.getComponentList();
-    console.log(`Found ${components.length} components to record`);
+    // Get component list from app and apply filter
+    const allComponents = await server.getComponentList();
+    const filterPattern = parseFilterArg(args);
+    const components = filterComponents(allComponents, filterPattern);
+
+    if (filterPattern) {
+      console.log(
+        `Recording ${components.length} of ${allComponents.length} components (filter: ${filterPattern})`,
+      );
+    } else {
+      console.log(`Found ${components.length} components to record`);
+    }
 
     // Record each component
     for (const component of components) {
@@ -41,7 +51,8 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
 
       // Take screenshot
       const screenshotPath = path.join(baselineDir, `${component}.png`);
-      const bundleId = platform === 'ios' ? config.ios.bundleId : config.android.packageName;
+      const bundleId =
+        platform === 'ios' ? config.ios.bundleId : config.android.packageName;
       await takeScreenshot(platform, screenshotPath, bundleId);
 
       await server.unmountComponent();
