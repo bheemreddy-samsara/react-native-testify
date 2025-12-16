@@ -200,29 +200,16 @@ export function TestifyApp({
     };
   }, []);
 
-  // Show idle screen when no component mounted
-  if (!mountState) {
-    return <IdleScreen port={port} connectionStatus={connectionStatus} />;
-  }
-
-  // Show error screen
-  if (mountState.status === 'error') {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorTitle}>Error</Text>
-        <Text style={styles.errorMessage}>{mountState.error}</Text>
-      </View>
-    );
-  }
-
-  // Get providers and wrap component
+  // Get providers and wrap component (must be before early returns to satisfy hooks rules)
   const providers = registry.getProviders();
   const Wrapper = registry.getWrapper();
   const storeFactory = registry.getStoreFactory();
-  const shouldIsolate = registry.shouldIsolateStore(mountState.name);
+  const shouldIsolate = mountState
+    ? registry.shouldIsolateStore(mountState.name)
+    : false;
 
   // Create fresh store if isolation is needed. We intentionally include
-  // mountState.name to ensure a new store when switching between components
+  // mountState?.name to ensure a new store when switching between components
   // that both request isolation, even though the linter considers it unnecessary.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mountState.name needed for store refresh
   const store = useMemo(() => {
@@ -230,7 +217,7 @@ export function TestifyApp({
       return storeFactory();
     }
     return null;
-  }, [shouldIsolate, storeFactory, mountState.name]);
+  }, [shouldIsolate, storeFactory, mountState?.name]);
 
   // Build provider tree
   const wrapWithProviders = useCallback(
@@ -256,6 +243,21 @@ export function TestifyApp({
     },
     [providers, store],
   );
+
+  // Show idle screen when no component mounted
+  if (!mountState) {
+    return <IdleScreen port={port} connectionStatus={connectionStatus} />;
+  }
+
+  // Show error screen
+  if (mountState.status === 'error') {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Error</Text>
+        <Text style={styles.errorMessage}>{mountState.error}</Text>
+      </View>
+    );
+  }
 
   // Render component content
   const componentContent = <mountState.component.render />;
