@@ -1,0 +1,190 @@
+name: Example iOS Report Demo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ios-report-demo:
+    name: Generate Testify HTML report (iOS)
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Install example dependencies
+        working-directory: example
+        run: npm install --no-audit --no-fund
+
+      - name: Install CocoaPods (if needed)
+        run: |
+          if command -v pod >/dev/null 2>&1; then
+            echo "CocoaPods already installed: $(pod --version)"
+            exit 0
+          fi
+
+          sudo gem install cocoapods
+
+      - name: Pod install
+        working-directory: example/ios
+        run: pod install
+
+      - name: Create simulator
+        id: simulator
+        run: |
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.platform=="iOS" and .isAvailable==true)] | sort_by(.version) | last | .identifier')
+          if [[ -z "$RUNTIME_ID" || "$RUNTIME_ID" == "null" ]]; then
+            echo "Failed to determine iOS runtime" >&2
+            exit 1
+          fi
+
+          DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '.devicetypes[] | select(.name=="iPhone 15 Pro") | .identifier' | head -n 1)
+          if [[ -z "$DEVICE_TYPE_ID" || "$DEVICE_TYPE_ID" == "null" ]]; then
+            DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '.devicetypes[] | select(.name | startswith("iPhone")) | .identifier' | head -n 1)
+          fi
+          if [[ -z "$DEVICE_TYPE_ID" || "$DEVICE_TYPE_ID" == "null" ]]; then
+            echo "Failed to determine iPhone device type" >&2
+            exit 1
+          fi
+
+          SIMULATOR_NAME="TestifyExample CI"
+          SIMULATOR_UDID=$(xcrun simctl create "$SIMULATOR_NAME" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+
+          echo "name=$SIMULATOR_NAME" >> "$GITHUB_OUTPUT"
+          echo "udid=$SIMULATOR_UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "${{ steps.simulator.outputs.udid }}"
+          xcrun simctl bootstatus "${{ steps.simulator.outputs.udid }}" -b
+
+      - name: Build app (Debug / Simulator)
+        run: |
+          xcodebuild \
+            -workspace example/ios/TestifyExample.xcworkspace \
+            -scheme TestifyExample \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            build
+
+      - name: Install app in simulator
+        run: |
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 3 -type d -name "TestifyExample.app" | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Failed to locate built .app" >&2
+            exit 1
+          fi
+          xcrun simctl install "${{ steps.simulator.outputs.udid }}" "$APP_PATH"
+
+      - name: Start Metro (background)
+        working-directory: example
+        run: |
+          npx react-native start --entry index.testify.js --reset-cache --port 8081 >"$RUNNER_TEMP/metro.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/metro.pid"
+
+          for i in {1..60}; do
+            if curl -fsS "http://localhost:8081/status" | grep -q "packager-status:running"; then
+              echo "Metro is running"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Metro failed to start" >&2
+          tail -n 200 "$RUNNER_TEMP/metro.log" || true
+          exit 1
+
+      - name: Record baselines
+        working-directory: example
+        run: |
+          bunx testify record \
+            --config testify.ci.config.ts \
+            --ios \
+            --filter "Button_Primary,Card_Simple,Badge_Success"
+        env:
+          TESTIFY_IOS_SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
+
+      - name: Mutate a baseline (force a demo diff)
+        working-directory: example
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { PNG } = require('pngjs');
+
+          const baselineDir = path.join(process.cwd(), 'testify', 'baselines', 'ios');
+          const files = fs
+            .readdirSync(baselineDir)
+            .filter((file) => file.endsWith('.png'))
+            .sort();
+
+          if (files.length === 0) {
+            throw new Error(`No baseline PNGs found in ${baselineDir}`);
+          }
+
+          const targetPath = path.join(baselineDir, files[0]);
+          const original = fs.readFileSync(targetPath);
+          const png = PNG.sync.read(original);
+          png.data[0] = (png.data[0] + 1) % 256;
+          fs.writeFileSync(targetPath, PNG.sync.write(png));
+
+          console.log(`Mutated baseline to force a diff: ${targetPath}`);
+          NODE
+
+      - name: Run tests (generate report)
+        continue-on-error: true
+        working-directory: example
+        run: |
+          bunx testify test \
+            --config testify.ci.config.ts \
+            --ios \
+            --filter "Button_Primary,Card_Simple,Badge_Success"
+        env:
+          TESTIFY_IOS_SIMULATOR_NAME: ${{ steps.simulator.outputs.name }}
+
+      - name: Add job summary
+        if: always()
+        run: |
+          echo "### Testify example report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`testify-example-ios-report\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Report: \`example/testify/baselines/testify-report.html\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Note: This workflow intentionally mutates one baseline to showcase a failing diff." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f example/testify/baselines/testify-report.html ]]; then
+            echo "Report generated ✅" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Report missing ❌" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Testify report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: testify-example-ios-report
+          path: |
+            example/testify/baselines/testify-report.html
+            example/testify/baselines/**
+
+      - name: Stop Metro
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/metro.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/metro.pid")" || true
+          fi
+          if [[ -f "$RUNNER_TEMP/metro.log" ]]; then
+            echo "---- Metro log (tail) ----"
+            tail -n 200 "$RUNNER_TEMP/metro.log" || true
+          fi
