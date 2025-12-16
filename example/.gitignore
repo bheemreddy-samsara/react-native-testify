@@ -66,6 +66,9 @@ yarn-error.log
 # testing
 /coverage
 
+# Testify auto-generated registry (regenerate with: bunx testify discover)
+testify/.generated-registry.tsx
+
 # Yarn
 .yarn/*
 !.yarn/patches

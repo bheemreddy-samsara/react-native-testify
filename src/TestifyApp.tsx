@@ -14,7 +14,12 @@ import {
   createConnection,
 } from './connection';
 import { waitForRenderComplete } from './idleDetection';
-import type { ProviderConfig, Registry, ResolvedComponent } from './registry';
+import type {
+  ProviderConfig,
+  Registry,
+  ResolvedComponent,
+  WrapperComponent,
+} from './registry';
 
 export interface IdleDetectionConfig {
   enabled?: boolean;
@@ -27,6 +32,10 @@ interface TestifyAppProps {
   port?: number;
   platform?: TestifyPlatform;
   idleDetection?: IdleDetectionConfig;
+  /** Providers to wrap all components (overrides registry providers) */
+  providers?: ProviderConfig[];
+  /** Wrapper component for all components (overrides registry wrapper) */
+  wrapper?: WrapperComponent;
 }
 
 interface MountState {
@@ -41,6 +50,8 @@ export function TestifyApp({
   port = 8089,
   platform,
   idleDetection = {},
+  providers: propProviders,
+  wrapper: propWrapper,
 }: TestifyAppProps) {
   // Auto-detect platform if not provided
   const detectedPlatform: TestifyPlatform =
@@ -201,8 +212,9 @@ export function TestifyApp({
   }, []);
 
   // Get providers and wrap component (must be before early returns to satisfy hooks rules)
-  const providers = registry.getProviders();
-  const Wrapper = registry.getWrapper();
+  // Props override registry options for cleaner auto-discovery pattern
+  const providers = propProviders ?? registry.getProviders();
+  const Wrapper = propWrapper ?? registry.getWrapper();
   const storeFactory = registry.getStoreFactory();
   const shouldIsolate = mountState
     ? registry.shouldIsolateStore(mountState.name)

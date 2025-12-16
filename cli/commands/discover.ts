@@ -3,6 +3,35 @@ import * as path from 'node:path';
 import type { TestifyConfig } from '../config';
 import { discoverTestifyFiles, generateRegistryCode } from '../discovery';
 
+export function getRegistryRelativeImportPath({
+  registryPath,
+  generatedRegistryPath,
+}: {
+  registryPath: string;
+  generatedRegistryPath: string;
+}): string {
+  const registryDir = path.dirname(path.resolve(process.cwd(), registryPath));
+  const generatedRegistryFile = path.resolve(
+    process.cwd(),
+    generatedRegistryPath,
+  );
+
+  let registryRelativePath = path.relative(registryDir, generatedRegistryFile);
+  registryRelativePath = registryRelativePath
+    .split(path.sep)
+    .join('/')
+    .replace(/\.tsx?$/, '');
+
+  if (
+    registryRelativePath.startsWith('..') ||
+    registryRelativePath.startsWith('./')
+  ) {
+    return registryRelativePath;
+  }
+
+  return `./${registryRelativePath}`;
+}
+
 export async function runDiscover(config: TestifyConfig, args: string[]) {
   const dryRun = args.includes('--dry-run');
   const verbose = args.includes('--verbose') || args.includes('-v');
@@ -71,9 +100,15 @@ export async function runDiscover(config: TestifyConfig, args: string[]) {
     fs.mkdirSync(path.dirname(registryPath), { recursive: true });
     fs.writeFileSync(registryPath, registryCode);
     console.log(`\nGenerated registry: ${registryPath}`);
-    console.log('\nUpdate your index.testify.js to import this registry:');
+    console.log('\nUsage in index.testify.js:');
     console.log(
-      `  import registry from '${config.discovery.generatedRegistry}';`,
+      `  import registry from '${getRegistryRelativeImportPath({ registryPath: config.entry, generatedRegistryPath: config.discovery.generatedRegistry })}';`,
     );
+    console.log('  <TestifyApp registry={registry} />');
+    console.log('\nWith providers (optional):');
+    console.log('  <TestifyApp');
+    console.log('    registry={registry}');
+    console.log('    providers={[{ component: ThemeProvider }]}');
+    console.log('  />');
   }
 }
