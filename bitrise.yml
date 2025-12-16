@@ -10,8 +10,9 @@ workflows:
   example_ios_report_demo:
     description: "Build Example iOS app + run Testify record/test (demo report)"
     steps:
-      - activate-ssh-key@4: {}
-      - git-clone@8: {}
+      - git-clone@8:
+          inputs:
+            - clone_via_ssh: "no"
       - cache-pull@2: {}
 
       - script@1:
