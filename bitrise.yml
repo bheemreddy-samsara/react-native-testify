@@ -4,7 +4,7 @@ default_step_lib_source: "https://github.com/bitrise-io/bitrise-steplib.git"
 
 app:
   envs:
-    - TESTIFY_EXAMPLE_FILTER: "Button_Primary,Card_Simple,Badge_Success"
+    - TESTIFY_EXAMPLE_FILTER: "Button/Primary,Card/Simple,Badge/Success"
 
 workflows:
   example_ios_report_demo:

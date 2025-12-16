@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY_DIR="${BITRISE_DEPLOY_DIR:-"$ROOT_DIR/.ci/bitrise-deploy"}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-"$ROOT_DIR/.ci/DerivedData"}"
-TESTIFY_EXAMPLE_FILTER="${TESTIFY_EXAMPLE_FILTER:-"Button_Primary,Card_Simple,Badge_Success"}"
+TESTIFY_EXAMPLE_FILTER="${TESTIFY_EXAMPLE_FILTER:-"Button/Primary,Card/Simple,Badge/Success"}"
 
 mkdir -p "$DEPLOY_DIR" "$DERIVED_DATA_PATH"
 
