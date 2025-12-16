@@ -9,6 +9,10 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
 
+    env:
+      DERIVED_DATA_PATH: ${{ runner.temp }}/DerivedData
+      COCOAPODS_DISABLE_STATS: true
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -17,15 +21,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.19.4
+          cache: npm
+          cache-dependency-path: example/package-lock.json
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.0
 
+      - name: Get Xcode version
+        id: xcode
+        run: |
+          echo "version=$(xcodebuild -version | head -n 1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
       - name: Install example dependencies
         working-directory: example
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            example/ios/Pods
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods
+          key: pods-${{ runner.os }}-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('example/ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-xcode-${{ steps.xcode.outputs.version }}-
+            pods-${{ runner.os }}-
 
       - name: Install CocoaPods (if needed)
         run: |
@@ -39,6 +62,15 @@ jobs:
       - name: Pod install
         working-directory: example/ios
         run: pod install
+
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DERIVED_DATA_PATH }}
+          key: deriveddata-${{ runner.os }}-xcode-${{ steps.xcode.outputs.version }}-${{ hashFiles('example/ios/Podfile.lock') }}-${{ hashFiles('example/package-lock.json') }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-xcode-${{ steps.xcode.outputs.version }}-
+            deriveddata-${{ runner.os }}-
 
       - name: Create simulator
         id: simulator
@@ -77,12 +109,12 @@ jobs:
             -configuration Debug \
             -sdk iphonesimulator \
             -destination "id=${{ steps.simulator.outputs.udid }}" \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
             build
 
       - name: Install app in simulator
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 3 -type d -name "TestifyExample.app" | head -n 1)
+          APP_PATH=$(find "$DERIVED_DATA_PATH/Build/Products" -maxdepth 3 -type d -name "TestifyExample.app" | head -n 1)
           if [[ -z "$APP_PATH" ]]; then
             echo "Failed to locate built .app" >&2
             exit 1
@@ -92,7 +124,7 @@ jobs:
       - name: Start Metro (background)
         working-directory: example
         run: |
-          npx react-native start --entry index.testify.js --reset-cache --port 8081 >"$RUNNER_TEMP/metro.log" 2>&1 &
+          npx react-native start --reset-cache --port 8081 --no-interactive >"$RUNNER_TEMP/metro.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/metro.pid"
 
           for i in {1..60}; do
