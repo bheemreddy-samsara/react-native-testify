@@ -36,6 +36,9 @@ tests/.test-images/
 package-lock.json
 yarn.lock
 
+# Example app uses npm ci (commit its lockfile)
+!example/package-lock.json
+
 # Example app build artifacts
 example/node_modules/
 example/ios/Pods/
