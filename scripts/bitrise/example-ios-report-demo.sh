@@ -29,6 +29,9 @@ bun run build
 echo "Installing example dependencies..."
 pushd example >/dev/null
 npm ci --no-audit --no-fund
+
+echo "Generating testify registry..."
+bunx testify discover
 popd >/dev/null
 
 if ! command -v pod >/dev/null 2>&1; then
