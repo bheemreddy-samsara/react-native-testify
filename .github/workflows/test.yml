@@ -5,6 +5,17 @@ on:
     types: [opened, synchronize]
 
 jobs:
+  workflow-lint:
+    name: Workflow lint
+    timeout-minutes: 2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions workflows
+        uses: rhysd/actionlint@v1.7.9
+
   test:
     name: Test
     timeout-minutes: 8
@@ -36,4 +47,3 @@ jobs:
 
       - name: Test
         run: bun test
-

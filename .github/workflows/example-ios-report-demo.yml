@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 45
 
     env:
-      DERIVED_DATA_PATH: ${{ runner.temp }}/DerivedData
+      DERIVED_DATA_PATH: ${{ github.workspace }}/.ci/DerivedData
       COCOAPODS_DISABLE_STATS: true
 
     steps:
@@ -127,7 +127,7 @@ jobs:
           npx react-native start --reset-cache --port 8081 --no-interactive >"$RUNNER_TEMP/metro.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/metro.pid"
 
-          for i in {1..60}; do
+          for ((i=0; i<60; i++)); do
             if curl -fsS "http://localhost:8081/status" | grep -q "packager-status:running"; then
               echo "Metro is running"
               exit 0
@@ -190,17 +190,19 @@ jobs:
       - name: Add job summary
         if: always()
         run: |
-          echo "### Testify example report" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Artifact: \`testify-example-ios-report\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Report: \`example/testify/baselines/testify-report.html\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Note: This workflow intentionally mutates one baseline to showcase a failing diff." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -f example/testify/baselines/testify-report.html ]]; then
-            echo "Report generated ✅" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Report missing ❌" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### Testify example report"
+            echo ""
+            echo "- Artifact: \`testify-example-ios-report\`"
+            echo "- Report: \`example/testify/baselines/testify-report.html\`"
+            echo "- Note: This workflow intentionally mutates one baseline to showcase a failing diff."
+            echo ""
+            if [[ -f example/testify/baselines/testify-report.html ]]; then
+              echo "Report generated ✅"
+            else
+              echo "Report missing ❌"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Testify report artifact
         uses: actions/upload-artifact@v4
