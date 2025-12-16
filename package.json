@@ -1,6 +1,6 @@
 {
   "name": "@samsara-dev/react-native-testify",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Component-level visual regression testing for React Native",
   "main": "dist/src/index.js",
   "types": "src/index.ts",
@@ -70,7 +70,13 @@
     "@types/react": "^18.0.0",
     "typescript": "^5.0.0"
   },
-  "files": ["dist", "src", "cli", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "src",
+    "cli",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/bheemreddy-samsara/react-native-testify.git"
