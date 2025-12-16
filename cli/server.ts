@@ -12,6 +12,18 @@ export interface AppConfig {
 const DEFAULT_MESSAGE_TIMEOUT_MS = 30_000;
 const MOUNT_TIMEOUT_PADDING_MS = 5_000;
 
+type PendingMessageHandler = {
+  resolve: (data: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+type PendingReadyHandler = {
+  resolve: () => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 interface TestifyServer {
   start(): Promise<void>;
   stop(): void;
@@ -25,40 +37,70 @@ interface TestifyServer {
 export function createServer(port: number): TestifyServer {
   let server: unknown = null;
   let connectedClient: unknown = null;
-  let isReady = false;
-  let readyResolver: (() => void) | null = null;
+  let readyClient: unknown = null;
+  let readyHandler: PendingReadyHandler | null = null;
   let lastConfig: AppConfig | null = null;
-  const messageHandlers: Map<string, (data: Record<string, unknown>) => void> =
-    new Map();
+  const messageHandlers: Map<string, PendingMessageHandler> = new Map();
 
   const waitForMessage = (
     type: string,
     timeout = DEFAULT_MESSAGE_TIMEOUT_MS,
   ): Promise<Record<string, unknown>> => {
+    if (messageHandlers.has(type)) {
+      throw new Error(`Already waiting for ${type}`);
+    }
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         messageHandlers.delete(type);
         reject(new Error(`Timeout waiting for ${type}`));
       }, timeout);
 
-      messageHandlers.set(type, (data) => {
-        clearTimeout(timer);
-        messageHandlers.delete(type);
-        resolve(data);
+      messageHandlers.set(type, {
+        resolve: (data) => {
+          clearTimeout(timer);
+          messageHandlers.delete(type);
+          resolve(data);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          messageHandlers.delete(type);
+          reject(error);
+        },
+        timer,
       });
     });
   };
 
   const sendToClient = (data: Record<string, unknown>) => {
-    if (
-      connectedClient &&
-      typeof (connectedClient as { send: (msg: string) => void }).send ===
-        'function'
-    ) {
-      (connectedClient as { send: (msg: string) => void }).send(
-        JSON.stringify(data),
-      );
+    if (!connectedClient) {
+      throw new Error('No app connected');
     }
+
+    if (
+      typeof (connectedClient as { send: (msg: string) => void }).send !==
+      'function'
+    ) {
+      throw new Error('Invalid WebSocket client');
+    }
+
+    (connectedClient as { send: (msg: string) => void }).send(
+      JSON.stringify(data),
+    );
+  };
+
+  const rejectAllPendingMessages = (error: Error) => {
+    for (const handler of Array.from(messageHandlers.values())) {
+      handler.reject(error);
+    }
+    messageHandlers.clear();
+  };
+
+  const rejectReadyWait = (error: Error) => {
+    if (!readyHandler) return;
+    clearTimeout(readyHandler.timer);
+    readyHandler.reject(error);
+    readyHandler = null;
   };
 
   const getMountTimeoutMs = (): number => {
@@ -96,7 +138,14 @@ export function createServer(port: number): TestifyServer {
         websocket: {
           open(ws) {
             console.log('[Server] Client connected');
+
+            if (connectedClient && ws !== connectedClient) {
+              rejectReadyWait(new Error('Client replaced'));
+              rejectAllPendingMessages(new Error('Client replaced'));
+            }
+
             connectedClient = ws;
+            readyClient = null;
           },
           message(ws, message) {
             try {
@@ -107,25 +156,40 @@ export function createServer(port: number): TestifyServer {
 
               // Handle "ready" message specially to avoid race condition
               if (data.type === 'ready') {
-                isReady = true;
-                if (readyResolver) {
-                  readyResolver();
-                  readyResolver = null;
+                if (ws !== connectedClient) return;
+
+                readyClient = ws;
+
+                if (lastConfig) {
+                  try {
+                    sendToClient({ type: 'configure', ...lastConfig });
+                  } catch {
+                    // no-op
+                  }
+                }
+
+                if (readyHandler) {
+                  clearTimeout(readyHandler.timer);
+                  readyHandler.resolve();
+                  readyHandler = null;
                 }
                 return;
               }
 
               const handler = messageHandlers.get(data.type as string);
-              if (handler) {
-                handler(data);
-              }
+              if (handler) handler.resolve(data);
             } catch (e) {
               console.error('[Server] Invalid message:', e);
             }
           },
-          close() {
+          close(ws) {
             console.log('[Server] Client disconnected');
-            connectedClient = null;
+            if (ws === connectedClient) {
+              connectedClient = null;
+              readyClient = null;
+              rejectReadyWait(new Error('Client disconnected'));
+              rejectAllPendingMessages(new Error('Client disconnected'));
+            }
           },
         },
       });
@@ -151,8 +215,8 @@ export function createServer(port: number): TestifyServer {
         await new Promise((r) => setTimeout(r, 100));
       }
 
-      // If already received ready message, return immediately
-      if (isReady) {
+      // If already received ready message for this connection, return immediately
+      if (readyClient && readyClient === connectedClient) {
         return;
       }
 
@@ -162,16 +226,35 @@ export function createServer(port: number): TestifyServer {
           reject(new Error('Timeout waiting for ready message'));
         }, 10000);
 
-        readyResolver = () => {
-          clearTimeout(timer);
-          resolve();
+        readyHandler = {
+          resolve: () => {
+            clearTimeout(timer);
+            resolve();
+          },
+          reject: (error) => {
+            clearTimeout(timer);
+            reject(error);
+          },
+          timer,
         };
+
+        if (readyClient && readyClient === connectedClient) {
+          clearTimeout(timer);
+          readyHandler = null;
+          resolve();
+        }
       });
     },
 
     sendConfig(config: AppConfig) {
       lastConfig = config;
-      sendToClient({ type: 'configure', ...config });
+
+      // If the app reconnects, it will be reconfigured on the next ready message.
+      try {
+        sendToClient({ type: 'configure', ...config });
+      } catch {
+        // no-op
+      }
     },
 
     async getComponentList(): Promise<string[]> {

@@ -156,4 +156,110 @@ describe('createServer', () => {
     expect(receivedUnmount).toBe(true);
     ws.close();
   });
+
+  test('mountComponent rejects when client disconnects mid-mount', async () => {
+    server = createServer(9993);
+    await server.start();
+
+    const ws = new WebSocket('ws://localhost:9993');
+
+    const ready = new Promise<void>((resolve) => {
+      ws.onopen = () => {
+        setTimeout(() => {
+          ws.send(JSON.stringify({ type: 'ready' }));
+          resolve();
+        }, 10);
+      };
+    });
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data as string);
+      if (data.type === 'mount') {
+        ws.close();
+      }
+    };
+
+    await ready;
+    await server.waitForConnection(2000);
+    await expect(server.mountComponent('TestButton')).rejects.toThrow(
+      'Client disconnected',
+    );
+  });
+
+  test('waitForConnection waits for ready after reconnect', async () => {
+    server = createServer(9992);
+    await server.start();
+
+    const ws1 = new WebSocket('ws://localhost:9992');
+    await new Promise<void>((resolve) => {
+      ws1.onopen = () => {
+        setTimeout(() => {
+          ws1.send(JSON.stringify({ type: 'ready' }));
+          resolve();
+        }, 10);
+      };
+    });
+
+    await server.waitForConnection(2000);
+    ws1.close();
+    await delay(50);
+
+    const ws2 = new WebSocket('ws://localhost:9992');
+    const readyPromise = server.waitForConnection(2000);
+
+    await new Promise<void>((resolve) => {
+      ws2.onopen = () => {
+        setTimeout(() => {
+          ws2.send(JSON.stringify({ type: 'ready' }));
+          resolve();
+        }, 10);
+      };
+    });
+
+    await readyPromise;
+    ws2.close();
+  });
+
+  test('re-sends config after client reconnects', async () => {
+    server = createServer(9991);
+    await server.start();
+
+    const ws1 = new WebSocket('ws://localhost:9991');
+    await new Promise<void>((resolve) => {
+      ws1.onopen = () => {
+        setTimeout(() => {
+          ws1.send(JSON.stringify({ type: 'ready' }));
+          resolve();
+        }, 10);
+      };
+    });
+
+    await server.waitForConnection(2000);
+    server.sendConfig({ defaultWaitMs: 123 });
+
+    ws1.close();
+    await delay(50);
+
+    const ws2 = new WebSocket('ws://localhost:9991');
+    const receivedConfig = new Promise<number>((resolve) => {
+      ws2.onmessage = (event) => {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'configure') {
+          resolve(data.defaultWaitMs as number);
+        }
+      };
+    });
+
+    await new Promise<void>((resolve) => {
+      ws2.onopen = () => {
+        setTimeout(() => {
+          ws2.send(JSON.stringify({ type: 'ready' }));
+          resolve();
+        }, 10);
+      };
+    });
+
+    await expect(receivedConfig).resolves.toBe(123);
+    ws2.close();
+  });
 });

@@ -29,6 +29,9 @@ jobs:
         with:
           bun-version: 1.3.0
 
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
       - name: Get Xcode version
         id: xcode
         run: |

@@ -17,7 +17,7 @@
     "react-native": "0.83.0",
     "@react-native/new-app-screen": "0.83.0",
     "react-native-safe-area-context": "^5.5.2",
-    "@samsara-dev/react-native-testify": "^0.1.0"
+    "@samsara-dev/react-native-testify": "file:.."
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
