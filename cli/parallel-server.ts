@@ -1,8 +1,14 @@
+import {
+  type WebSocketClient,
+  type WebSocketServer,
+  createWebSocketServer,
+} from './runtime/ws-server';
+
 type Platform = 'ios' | 'android';
 
 interface Client {
   id: string;
-  ws: unknown;
+  ws: WebSocketClient;
   platform: Platform;
   isReady: boolean;
   messageHandlers: Map<string, (data: Record<string, unknown>) => void>;
@@ -36,7 +42,7 @@ interface ParallelServer {
 }
 
 export function createParallelServer(port: number): ParallelServer {
-  let server: unknown = null;
+  let server: WebSocketServer | null = null;
   const clients: Map<Platform, Client> = new Map();
   const pendingReady: Map<Platform, () => void> = new Map();
   let lastConfig: AppConfig | null = null;
@@ -63,10 +69,7 @@ export function createParallelServer(port: number): ParallelServer {
   };
 
   const sendToClient = (client: Client, data: Record<string, unknown>) => {
-    const ws = client.ws as { send: (msg: string) => void };
-    if (ws && typeof ws.send === 'function') {
-      ws.send(JSON.stringify(data));
-    }
+    client.ws.send(JSON.stringify(data));
   };
 
   const getMountTimeoutMs = (): number => {
@@ -115,69 +118,50 @@ export function createParallelServer(port: number): ParallelServer {
 
   return {
     async start() {
-      server = Bun.serve<{ platform: Platform }>({
+      server = createWebSocketServer<{ platform: Platform }>({
         port,
-        fetch(req, srv) {
-          // Extract platform from query string if provided
-          const url = new URL(req.url);
-          const platform =
-            (url.searchParams.get('platform') as Platform) || 'ios';
+        onOpen(ws) {
+          const platform = (ws.data?.platform as Platform) || 'ios';
+          const client: Client = {
+            id: `${platform}-${Date.now()}`,
+            ws,
+            platform,
+            isReady: false,
+            messageHandlers: new Map(),
+          };
 
-          if (srv.upgrade(req, { data: { platform } })) return;
-          return new Response('Testify Parallel Server', { status: 200 });
+          clients.delete(platform);
+          clients.set(platform, client);
+
+          console.log(`[Server] ${platform} client connected`);
         },
-        websocket: {
-          open(ws) {
-            const platform = ws.data?.platform || 'ios';
-            const client: Client = {
-              id: `${platform}-${Date.now()}`,
-              ws,
-              platform,
-              isReady: false,
-              messageHandlers: new Map(),
-            };
+        onMessage(ws, message) {
+          const platform = (ws.data?.platform as Platform) || 'ios';
+          const client = clients.get(platform);
+          if (!client) return;
 
-            // Remove existing client for this platform
-            clients.delete(platform);
-            clients.set(platform, client);
-
-            console.log(`[Server] ${platform} client connected`);
-          },
-          message(ws, message) {
-            const platform = ws.data?.platform || 'ios';
-            const client = clients.get(platform);
-            if (!client) return;
-
-            try {
-              const data = JSON.parse(String(message)) as Record<
-                string,
-                unknown
-              >;
-              handleMessage(client, data);
-            } catch (e) {
-              console.error('[Server] Invalid message:', e);
-            }
-          },
-          close(ws) {
-            const platform = ws.data?.platform || 'ios';
-            console.log(`[Server] ${platform} client disconnected`);
-            clients.delete(platform);
-          },
+          try {
+            const data = JSON.parse(message) as Record<string, unknown>;
+            handleMessage(client, data);
+          } catch (e) {
+            console.error('[Server] Invalid message:', e);
+          }
+        },
+        onClose(ws) {
+          const platform = (ws.data?.platform as Platform) || 'ios';
+          console.log(`[Server] ${platform} client disconnected`);
+          clients.delete(platform);
         },
       });
 
+      await server.start();
       console.log(
         `[Server] Parallel server listening on ws://localhost:${port}`,
       );
     },
 
     stop() {
-      if (
-        server &&
-        typeof (server as { stop: () => void }).stop === 'function'
-      ) {
-        (server as { stop: () => void }).stop();
-      }
+      server?.stop();
       clients.clear();
     },
 

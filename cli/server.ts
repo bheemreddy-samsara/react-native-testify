@@ -1,3 +1,9 @@
+import {
+  type WebSocketClient,
+  type WebSocketServer,
+  createWebSocketServer,
+} from './runtime/ws-server';
+
 export interface IdleDetectionConfig {
   enabled: boolean;
   timeoutMs: number;
@@ -35,9 +41,9 @@ interface TestifyServer {
 }
 
 export function createServer(port: number): TestifyServer {
-  let server: unknown = null;
-  let connectedClient: unknown = null;
-  let readyClient: unknown = null;
+  let server: WebSocketServer | null = null;
+  let connectedClient: WebSocketClient | null = null;
+  let readyClient: WebSocketClient | null = null;
   let readyHandler: PendingReadyHandler | null = null;
   let lastConfig: AppConfig | null = null;
   const messageHandlers: Map<string, PendingMessageHandler> = new Map();
@@ -76,17 +82,7 @@ export function createServer(port: number): TestifyServer {
     if (!connectedClient) {
       throw new Error('No app connected');
     }
-
-    if (
-      typeof (connectedClient as { send: (msg: string) => void }).send !==
-      'function'
-    ) {
-      throw new Error('Invalid WebSocket client');
-    }
-
-    (connectedClient as { send: (msg: string) => void }).send(
-      JSON.stringify(data),
-    );
+    connectedClient.send(JSON.stringify(data));
   };
 
   const rejectAllPendingMessages = (error: Error) => {
@@ -128,82 +124,67 @@ export function createServer(port: number): TestifyServer {
 
   return {
     async start() {
-      // Use Bun's native WebSocket server
-      server = Bun.serve({
+      server = createWebSocketServer({
         port,
-        fetch(req, server) {
-          if (server.upgrade(req)) return;
-          return new Response('WebSocket server', { status: 200 });
+        onOpen(ws) {
+          console.log('[Server] Client connected');
+
+          if (connectedClient && ws !== connectedClient) {
+            rejectReadyWait(new Error('Client replaced'));
+            rejectAllPendingMessages(new Error('Client replaced'));
+          }
+
+          connectedClient = ws;
+          readyClient = null;
         },
-        websocket: {
-          open(ws) {
-            console.log('[Server] Client connected');
+        onMessage(ws, message) {
+          try {
+            const data = JSON.parse(message) as Record<string, unknown>;
 
-            if (connectedClient && ws !== connectedClient) {
-              rejectReadyWait(new Error('Client replaced'));
-              rejectAllPendingMessages(new Error('Client replaced'));
-            }
+            if (data.type === 'ready') {
+              if (ws !== connectedClient) return;
 
-            connectedClient = ws;
-            readyClient = null;
-          },
-          message(ws, message) {
-            try {
-              const data = JSON.parse(String(message)) as Record<
-                string,
-                unknown
-              >;
+              readyClient = ws;
 
-              // Handle "ready" message specially to avoid race condition
-              if (data.type === 'ready') {
-                if (ws !== connectedClient) return;
-
-                readyClient = ws;
-
-                if (lastConfig) {
-                  try {
-                    sendToClient({ type: 'configure', ...lastConfig });
-                  } catch {
-                    // no-op
-                  }
+              if (lastConfig) {
+                try {
+                  sendToClient({ type: 'configure', ...lastConfig });
+                } catch {
+                  // no-op
                 }
-
-                if (readyHandler) {
-                  clearTimeout(readyHandler.timer);
-                  readyHandler.resolve();
-                  readyHandler = null;
-                }
-                return;
               }
 
-              const handler = messageHandlers.get(data.type as string);
-              if (handler) handler.resolve(data);
-            } catch (e) {
-              console.error('[Server] Invalid message:', e);
+              if (readyHandler) {
+                clearTimeout(readyHandler.timer);
+                readyHandler.resolve();
+                readyHandler = null;
+              }
+              return;
             }
-          },
-          close(ws) {
-            console.log('[Server] Client disconnected');
-            if (ws === connectedClient) {
-              connectedClient = null;
-              readyClient = null;
-              rejectReadyWait(new Error('Client disconnected'));
-              rejectAllPendingMessages(new Error('Client disconnected'));
-            }
-          },
+
+            const handler = messageHandlers.get(data.type as string);
+            if (handler) handler.resolve(data);
+          } catch (e) {
+            console.error('[Server] Invalid message:', e);
+          }
+        },
+        onClose(ws) {
+          console.log('[Server] Client disconnected');
+          if (ws === connectedClient) {
+            connectedClient = null;
+            readyClient = null;
+            rejectReadyWait(new Error('Client disconnected'));
+            rejectAllPendingMessages(new Error('Client disconnected'));
+          }
         },
       });
 
+      await server.start();
       console.log(`[Server] Listening on ws://localhost:${port}`);
     },
 
     stop() {
-      if (
-        server &&
-        typeof (server as { stop: () => void }).stop === 'function'
-      ) {
-        (server as { stop: () => void }).stop();
-      }
+      server?.stop();
     },
 
     async waitForConnection(timeout: number) {

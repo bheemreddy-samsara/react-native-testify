@@ -2,8 +2,6 @@
 
 Component-level visual regression testing for React Native. Mount components in isolation, capture screenshots, and detect UI changes.
 
-> **Note:** This library requires [Bun](https://bun.sh) runtime for the CLI.
-
 ## Features
 
 - **Isolated Component Rendering** - Test components without building the full app
@@ -48,7 +46,7 @@ https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
 
 ## Requirements
 
-- [Bun](https://bun.sh) >= 1.0.0 (for CLI)
+- Node.js >= 18.0.0 or [Bun](https://bun.sh) >= 1.0.0 (for CLI)
 - React Native >= 0.65.0
 - Xcode (for iOS Simulator)
 - Android Studio (for Android Emulator)
@@ -56,6 +54,11 @@ https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
 ## Installation
 
 ```bash
+# Using npm/yarn
+npm install @samsara-dev/react-native-testify
+yarn add @samsara-dev/react-native-testify
+
+# Using bun
 bun add @samsara-dev/react-native-testify
 ```
 

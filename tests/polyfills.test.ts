@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { generatePolyfillCode, resolvePolyfills } from '../cli/polyfills';
 
 describe('resolvePolyfills', () => {

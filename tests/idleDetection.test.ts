@@ -1,8 +1,8 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test, vi } from 'vitest';
 
 let afterInteractionsDelayMs = 0;
 
-mock.module('react-native', () => ({
+vi.mock('react-native', () => ({
   InteractionManager: {
     runAfterInteractions: (callback: () => void) => {
       const id = setTimeout(callback, afterInteractionsDelayMs);
