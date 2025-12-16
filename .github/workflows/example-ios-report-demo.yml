@@ -32,6 +32,9 @@ jobs:
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build Testify package (for local example dependency)
+        run: bun run build
+
       - name: Get Xcode version
         id: xcode
         run: |
