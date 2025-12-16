@@ -27,26 +27,38 @@ Testify flows:
   - ✅ DO: keep harness entry isolated in `example/index.testify.js`.
   - ❌ DON'T: copy the hardcoded demo toggle (`USE_TESTIFY = true` in `example/index.js`) into production apps.
 
-### Manual registry mode (explicit registry)
+### Auto-Discovery Mode (primary pattern)
 
-- The example’s explicit registry lives in `example/testify/registry.tsx`.
-- This is the simplest integration style:
-  - add components to the registry
-  - run `bunx testify record/test` from the app root
+This example uses auto-discovery as the primary pattern:
+
+1. **Component variants** are defined in colocated `*.testify.tsx` files
+   - Examples: `example/src/components/Button.testify.tsx`, `example/src/screens/ProfileScreen.testify.tsx`
+
+2. **Registry is auto-generated** by running `bunx testify discover`
+   - Output: `example/testify/.generated-registry.tsx`
+
+3. **Providers/wrapper** are defined in the entry file
+   - See: `example/index.testify.js`
+
+Workflow:
+```bash
+# After adding/modifying *.testify.tsx files
+cd example && bunx testify discover
+
+# Record baselines
+bunx testify record --ios
+
+# Run tests
+bunx testify test --ios
+```
 
 ✅ DO:
+- Define component variants in colocated `*.testify.tsx` files
+- Run `bunx testify discover` after adding new testify files
+- Define providers/wrapper in `index.testify.js`
 
-- Follow the wrapper/layout pattern in `example/testify/registry.tsx` (e.g., the `Centered` helper).
-
-### Discovery mode (per-component files)
-
-- Component variants can be colocated next to components as `*.testify.tsx`.
-  - Examples: `example/src/components/Button.testify.tsx`, `example/src/components/Card.testify.tsx`.
-
-To try discovery mode:
-
-- Enable discovery in `example/testify.config.ts` and point the app to the generated registry.
-- Generate registry: `cd example && bunx testify discover`
+❌ DON'T:
+- Edit `.generated-registry.tsx` manually (it will be overwritten)
 
 ### Baselines + report output
 
@@ -56,24 +68,26 @@ To try discovery mode:
 ## Touch Points / Key Files
 
 - Entry toggle: `example/index.js`
-- Testify entry: `example/index.testify.js`
+- Testify entry (with providers): `example/index.testify.js`
 - Testify config: `example/testify.config.ts`
 - CI config: `example/testify.ci.config.ts`
-- Manual registry: `example/testify/registry.tsx`
+- Generated registry: `example/testify/.generated-registry.tsx`
 - Component variants: `example/src/components/*.testify.tsx`
+- Screen variants: `example/src/screens/*.testify.tsx`
 - Baselines/report: `example/testify/baselines/**`
 
 ## JIT Index Hints
 
 - Find testify variant files: `fd -t f -E node_modules "\\.testify\\.tsx$" example/src`
-- Find registry entries: `rg -n "createRegistry\(" example/testify/registry.tsx`
-- Find harness wiring: `rg -n "TestifyApp|registerComponent" example/index.testify.js`
+- Find harness wiring: `rg -n "TestifyApp|registerComponent|providers|wrapper" example/index.testify.js`
+- Find generated registry: `cat example/testify/.generated-registry.tsx`
 
 ## Common Gotchas
 
-- The example app uses npm + `package-lock.json` (don’t run `bun install` inside `example/`).
+- The example app uses npm + `package-lock.json` (don't run `bun install` inside `example/`).
 - Root Biome config ignores `example/`, so use `npm run lint` for example-only changes.
 - iOS requires CocoaPods (`cd example/ios && pod install`) when dependencies change.
+- Always run `bunx testify discover` after adding new `*.testify.tsx` files.
 
 ## Pre-PR Checks
 

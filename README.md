@@ -30,37 +30,23 @@ bun add @samsara-dev/react-native-testify
 
 ## Quick Start
 
-### 1. Create a component registry
+### 1. Create component testify files
 
 ```tsx
-// testify/registry.tsx
-import { createRegistry } from '@samsara-dev/react-native-testify';
-import { Button, Card } from '../src/components';
-import { ThemeProvider } from '../src/theme';
+// src/components/Button.testify.tsx
+import { Button } from './Button';
 
-export default createRegistry({
-  'Button_Primary': () => <Button variant="primary" title="Click me" />,
-  'Button_Disabled': () => <Button disabled title="Disabled" />,
-  'Card_Simple': () => <Card title="Hello World" />,
-}, {
-  wrapper: (children) => <ThemeProvider>{children}</ThemeProvider>,
-  defaultWaitMs: 300,
-});
+export default {
+  'Button/Primary': {
+    render: () => <Button variant="primary" title="Click me" />,
+  },
+  'Button/Disabled': {
+    render: () => <Button disabled title="Disabled" />,
+  },
+};
 ```
 
-### 2. Create the testify entry point
-
-```tsx
-// index.testify.js
-import { AppRegistry } from 'react-native';
-import { TestifyApp } from '@samsara-dev/react-native-testify';
-import registry from './testify/registry';
-
-const App = () => <TestifyApp registry={registry} />;
-AppRegistry.registerComponent('YourApp', () => App);
-```
-
-### 3. Create config file
+### 2. Create config file
 
 ```ts
 // testify.config.ts
@@ -69,15 +55,38 @@ import { defineConfig } from '@samsara-dev/react-native-testify/config';
 export default defineConfig({
   baselines: './testify/baselines',
   threshold: 0.01,
+  discovery: {
+    enabled: true,
+    pattern: '**/*.testify.tsx',
+    rootDir: './src',
+  },
   ios: {
     simulator: 'iPhone 15 Pro',
     bundleId: 'com.yourapp',
   },
-  android: {
-    emulator: 'Pixel_7_API_34',
-    packageName: 'com.yourapp',
-  },
 });
+```
+
+### 3. Generate registry and create entry point
+
+```bash
+bunx testify discover
+```
+
+```tsx
+// index.testify.js
+import { AppRegistry } from 'react-native';
+import { TestifyApp } from '@samsara-dev/react-native-testify';
+import registry from './testify/.generated-registry';
+import { ThemeProvider } from './src/theme';
+
+const App = () => (
+  <TestifyApp
+    registry={registry}
+    providers={[{ component: ThemeProvider }]}
+  />
+);
+AppRegistry.registerComponent('YourApp', () => App);
 ```
 
 ### 4. Run tests
@@ -111,6 +120,8 @@ export default defineConfig({
   discovery: {
     enabled: true,
     pattern: '**/*.testify.tsx',
+    rootDir: './src',
+    generatedRegistry: './testify/.generated-registry.tsx',
   },
 });
 ```
@@ -138,6 +149,27 @@ export default {
 
 ```bash
 bunx testify discover
+```
+
+### 4. Use generated registry with providers
+
+```tsx
+// index.testify.js
+import { AppRegistry } from 'react-native';
+import { TestifyApp } from '@samsara-dev/react-native-testify';
+import registry from './testify/.generated-registry';
+import { ThemeProvider } from './src/theme';
+
+// Pass providers/wrapper as props to TestifyApp
+const App = () => (
+  <TestifyApp
+    registry={registry}
+    providers={[{ component: ThemeProvider, props: {} }]}
+    wrapper={(children) => <View style={styles.container}>{children}</View>}
+  />
+);
+
+AppRegistry.registerComponent('YourApp', () => App);
 ```
 
 ## Idle Detection

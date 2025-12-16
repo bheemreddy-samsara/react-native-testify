@@ -1,5 +1,6 @@
 import React from 'react';
 import {View, Text, StyleSheet, type ReactNode} from 'react-native';
+import {useTheme} from '../context';
 
 interface CardProps {
   title: string;
@@ -8,10 +9,16 @@ interface CardProps {
 }
 
 export function Card({title, subtitle, children}: CardProps) {
+  const theme = useTheme();
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+    <View style={[styles.card, {backgroundColor: theme.colors.surface}]}>
+      <Text style={[styles.title, {color: theme.colors.text}]}>{title}</Text>
+      {subtitle && (
+        <Text style={[styles.subtitle, {color: theme.colors.textSecondary}]}>
+          {subtitle}
+        </Text>
+      )}
       {children && <View style={styles.content}>{children}</View>}
     </View>
   );
@@ -19,7 +26,6 @@ export function Card({title, subtitle, children}: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
@@ -32,12 +38,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1a1a1a',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 12,
   },
   content: {

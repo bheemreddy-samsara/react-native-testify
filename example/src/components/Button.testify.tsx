@@ -45,4 +45,16 @@ export default {
       </Centered>
     ),
   },
+  // Example with custom waitFor (async condition)
+  'Button/AsyncLoad': {
+    render: () => (
+      <Centered>
+        <Button title="Loaded" variant="primary" />
+      </Centered>
+    ),
+    waitFor: async () => {
+      // Simulate waiting for async data
+      await new Promise(resolve => setTimeout(resolve, 100));
+    },
+  },
 };
