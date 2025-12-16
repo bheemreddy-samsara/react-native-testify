@@ -42,9 +42,7 @@ flowchart LR
 
 ### Workflow Demo
 
-https://github.com/user-attachments/assets/placeholder-upload-video-here
-
-> **Note:** To see the demo video, check [docs/assets/testify-demo.mp4](docs/assets/testify-demo.mp4) or upload to GitHub releases.
+https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
 
 <details>
 <summary>View workflow frames</summary>

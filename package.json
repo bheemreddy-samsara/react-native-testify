@@ -70,13 +70,7 @@
     "@types/react": "^18.0.0",
     "typescript": "^5.0.0"
   },
-  "files": [
-    "dist",
-    "src",
-    "cli",
-    "README.md",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist", "src", "cli", "README.md", "CHANGELOG.md"],
   "repository": {
     "type": "git",
     "url": "https://github.com/bheemreddy-samsara/react-native-testify.git"
