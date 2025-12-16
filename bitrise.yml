@@ -1,0 +1,41 @@
+format_version: "11"
+
+default_step_lib_source: "https://github.com/bitrise-io/bitrise-steplib.git"
+
+app:
+  envs:
+    - TESTIFY_EXAMPLE_FILTER: "Button_Primary,Card_Simple,Badge_Success"
+
+workflows:
+  example_ios_report_demo:
+    description: "Build Example iOS app + run Testify record/test (demo report)"
+    steps:
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - cache-pull@2: {}
+
+      - script@1:
+          title: Example iOS report demo
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+
+                ./scripts/bitrise/example-ios-report-demo.sh
+
+      - deploy-to-bitrise-io@2:
+          title: Upload Testify report zip
+          inputs:
+            - deploy_path: ${BITRISE_DEPLOY_DIR}/testify-example-ios-report.zip
+
+      - deploy-to-bitrise-io@2:
+          title: Upload Testify report HTML
+          inputs:
+            - deploy_path: ${BITRISE_DEPLOY_DIR}/testify-report.html
+
+      - deploy-to-bitrise-io@2:
+          title: Upload Metro log
+          inputs:
+            - deploy_path: ${BITRISE_DEPLOY_DIR}/metro.log
+
+      - cache-push@2: {}
