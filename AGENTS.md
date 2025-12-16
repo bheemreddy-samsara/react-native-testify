@@ -25,7 +25,7 @@ This repo uses a **hierarchical AGENTS.md** system.
 - **Formatting/lint:** Biome config lives in `biome.json` (single quotes + semicolons).
 - **TypeScript:** `strict: true` in `tsconfig.json`.
 - **Generated output:** don’t edit `dist/` by hand; update source and run `bun run build`.
-- **Releases:** user-facing changes should add a Changeset (see `.changeset/AGENTS.md`).
+- **Releases:** user-facing changes should add a Changeset (see `.changeset/config.json` + `.github/workflows/package-version.yml`).
 - **CI expectations:** workflows use Node 20.x + Bun 1.3.x (see `.github/workflows/*.yml`).
 
 ## Security & Secrets
@@ -43,7 +43,7 @@ This repo uses a **hierarchical AGENTS.md** system.
 - Unit tests (bun:test): `tests/` → see [`tests/AGENTS.md`](tests/AGENTS.md)
 - Example app (React Native): `example/` → see [`example/AGENTS.md`](example/AGENTS.md)
 - CI / release automation: `.github/` → see [`.github/AGENTS.md`](.github/AGENTS.md)
-- Changesets config: `.changeset/` → see [`.changeset/AGENTS.md`](.changeset/AGENTS.md)
+- Changesets config: `.changeset/` (Changesets parses all `.md` files here; keep docs elsewhere)
 
 ### Quick Find Commands
 
