@@ -209,8 +209,14 @@ export async function buildIos(config: TestifyConfig): Promise<void> {
   await exec('xcodebuild', args);
 }
 
-export async function startMetro(entryFile: string): Promise<void> {
-  spawn('npx', ['react-native', 'start', '--entry', entryFile], {
+export async function startMetro(entryFile?: string): Promise<void> {
+  if (entryFile) {
+    console.warn(
+      `[warn] react-native start does not support an entry file flag. Ensure your app's index.js imports ${entryFile} when running Testify.`,
+    );
+  }
+
+  spawn('npx', ['react-native', 'start', '--no-interactive'], {
     stdio: 'inherit',
     detached: true,
   });

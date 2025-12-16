@@ -7,7 +7,7 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "start:testify": "react-native start --entry index.testify.js",
+    "start:testify": "react-native start --reset-cache --port 8081",
     "test": "jest",
     "testify:record": "bunx testify record --ios",
     "testify:test": "bunx testify test --ios"
