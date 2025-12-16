@@ -17,6 +17,9 @@ Thumbs.db
 # Code (Codex CLI) artifacts
 .code/
 
+# Local CI scratch
+.ci/
+
 # Logs
 *.log
 npm-debug.log*
@@ -49,6 +52,7 @@ example/android/app/build/
 example/.bundle/
 example/*.hprof
 example/*.log
+example/.watchman-cookie-*
 
 # Baseline images (use git-lfs if needed)
 # testify/baselines/
