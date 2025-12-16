@@ -23,6 +23,9 @@ echo "npm: $(npm --version)"
 echo "Installing root dependencies..."
 bun install --frozen-lockfile
 
+echo "Building Testify package (for local example dependency)..."
+bun run build
+
 echo "Installing example dependencies..."
 pushd example >/dev/null
 npm ci --no-audit --no-fund
