@@ -56,16 +56,69 @@ export async function runRecord(config: TestifyConfig, args: string[]) {
     for (const component of components) {
       console.log(`  Recording: ${component}`);
 
-      await server.mountComponent(component);
+      let lastError: string | null = null;
 
-      // Take screenshot (sanitize component name for filename)
-      const safeFilename = component.replace(/\//g, '-');
-      const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
-      const bundleId =
-        platform === 'ios' ? config.ios.bundleId : config.android.packageName;
-      await takeScreenshot(platform, screenshotPath, bundleId);
+      for (let attempt = 0; attempt <= config.retryCount; attempt++) {
+        let mounted = false;
 
-      await server.unmountComponent();
+        try {
+          await server.mountComponent(component);
+          mounted = true;
+
+          // Take screenshot (sanitize component name for filename)
+          const safeFilename = component.replace(/\//g, '-');
+          const screenshotPath = path.join(baselineDir, `${safeFilename}.png`);
+          const bundleId =
+            platform === 'ios'
+              ? config.ios.bundleId
+              : config.android.packageName;
+          await takeScreenshot(platform, screenshotPath, bundleId);
+
+          await server.unmountComponent();
+          mounted = false;
+          lastError = null;
+          break;
+        } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          lastError = errorMessage;
+
+          if (mounted) {
+            try {
+              await server.unmountComponent();
+            } catch {
+              // best-effort cleanup
+            }
+          }
+
+          if (attempt < config.retryCount) {
+            console.warn(
+              `  [warn] ${component} attempt ${attempt + 1}/${config.retryCount + 1} failed: ${errorMessage}`,
+            );
+
+            if (
+              /disconnected|No app connected|Timeout waiting for app connection|Timeout waiting for ready message/i.test(
+                errorMessage,
+              )
+            ) {
+              console.warn(
+                '  [warn] Re-launching app after connection issue...',
+              );
+              await launchSimulator(config, platform);
+              await server.waitForConnection(60000);
+              server.sendConfig({
+                idleDetection: config.idleDetection,
+                defaultWaitMs: config.defaultWaitMs,
+              });
+            }
+
+            await new Promise((r) => setTimeout(r, config.retryDelayMs));
+          }
+        }
+      }
+
+      if (lastError) {
+        throw new Error(`Failed to record ${component}: ${lastError}`);
+      }
     }
 
     console.log(`\nRecorded ${components.length} baselines to ${baselineDir}`);
