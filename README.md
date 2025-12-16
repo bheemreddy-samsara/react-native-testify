@@ -15,6 +15,44 @@ Component-level visual regression testing for React Native. Mount components in 
 - **Parallel Testing** - Run tests on iOS and Android simultaneously
 - **Retry Logic** - Configurable retries for flaky renders
 
+## How It Works
+
+```mermaid
+flowchart LR
+    subgraph Development
+        A[Component Code] --> B[*.testify.tsx]
+        B --> |bunx testify discover| C[Generated Registry]
+    end
+    
+    subgraph Runtime
+        C --> D[TestifyApp]
+        D --> E[Mount Component]
+        E --> F[Wait for Idle]
+        F --> G[Capture Screenshot]
+    end
+    
+    subgraph Testing
+        G --> |record| H[Baseline Image]
+        G --> |test| I[Compare with Baseline]
+        I --> J{Match?}
+        J --> |Yes| K[✓ Pass]
+        J --> |No| L[✗ Fail + Diff]
+    end
+```
+
+### Workflow Demo
+
+https://github.com/user-attachments/assets/placeholder-upload-video-here
+
+> **Note:** To see the demo video, check [docs/assets/testify-demo.mp4](docs/assets/testify-demo.mp4) or upload to GitHub releases.
+
+<details>
+<summary>View workflow frames</summary>
+
+![Testify Workflow](docs/assets/testify-workflow.png)
+
+</details>
+
 ## Requirements
 
 - [Bun](https://bun.sh) >= 1.0.0 (for CLI)
