@@ -18,7 +18,7 @@ Component-level visual regression testing for React Native. Mount components in 
 ## How It Works
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph Development
         A[Component Code] --> B[*.testify.tsx]
         B --> |bunx testify discover| C[Generated Registry]
@@ -40,16 +40,11 @@ flowchart LR
     end
 ```
 
+> **Architecture:** Testify requires a native binary build (like any visual testing solution), but instead of rendering your full app tree, the `TestifyApp` harness mounts components in isolation. Each component is wrapped with your providers (Theme, Redux, etc.) and rendered one at a time - no navigation, no other screens, just the component under test.
+
 ### Workflow Demo
 
 https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
-
-<details>
-<summary>View workflow frames</summary>
-
-![Testify Workflow](docs/assets/testify-workflow.png)
-
-</details>
 
 ## Requirements
 
