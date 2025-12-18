@@ -20,6 +20,10 @@ import type {
   ResolvedComponent,
   WrapperComponent,
 } from './registry';
+import {
+  type TextInputStabilizerConfig,
+  applyTextInputStabilizer,
+} from './stabilizers/textInput';
 
 export interface IdleDetectionConfig {
   enabled?: boolean;
@@ -27,11 +31,16 @@ export interface IdleDetectionConfig {
   debounceMs?: number;
 }
 
+export interface StabilizersConfig {
+  textInput?: boolean | TextInputStabilizerConfig;
+}
+
 interface TestifyAppProps {
   registry: Registry;
   port?: number;
   platform?: TestifyPlatform;
   idleDetection?: IdleDetectionConfig;
+  stabilizers?: StabilizersConfig;
   /** Providers to wrap all components (overrides registry providers) */
   providers?: ProviderConfig[];
   /** Wrapper component for all components (overrides registry wrapper) */
@@ -50,9 +59,16 @@ export function TestifyApp({
   port = 8089,
   platform,
   idleDetection = {},
+  stabilizers,
   providers: propProviders,
   wrapper: propWrapper,
 }: TestifyAppProps) {
+  if (stabilizers?.textInput) {
+    applyTextInputStabilizer(
+      stabilizers.textInput === true ? {} : stabilizers.textInput,
+    );
+  }
+
   // Auto-detect platform if not provided
   const detectedPlatform: TestifyPlatform =
     platform || (Platform.OS === 'ios' ? 'ios' : 'android');

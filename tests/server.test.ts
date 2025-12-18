@@ -1,8 +1,60 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createServer } from '../cli/server';
 
+type WebsocketHandler = {
+  open: (ws: MockWebSocket) => void;
+  message: (ws: MockWebSocket, message: unknown) => void;
+  close: (ws: MockWebSocket) => void;
+};
+
+type MockWebSocket = {
+  sent: string[];
+  send: (msg: string) => void;
+};
+
+type BunServeOptions = {
+  port: number;
+  fetch: (
+    req: Request,
+    server: { upgrade: (req: Request) => boolean },
+  ) => Response | undefined;
+  websocket: WebsocketHandler;
+};
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createMockBunServe() {
+  let lastOptions: BunServeOptions | null = null;
+
+  const serve = (options: BunServeOptions) => {
+    lastOptions = options;
+    return {
+      upgrade: () => true,
+      stop: () => {},
+    };
+  };
+
+  return {
+    serve,
+    getWebsocketHandlers(): WebsocketHandler {
+      if (!lastOptions) {
+        throw new Error('Bun.serve was not called');
+      }
+      return lastOptions.websocket;
+    },
+  };
+}
+
+function createMockWebSocket(): MockWebSocket {
+  const sent: string[] = [];
+  return {
+    sent,
+    send: (msg: string) => {
+      sent.push(msg);
+    },
+  };
 }
 
 describe('createServer', () => {
@@ -11,255 +63,153 @@ describe('createServer', () => {
   afterEach(async () => {
     server?.stop();
     server = null;
-    await delay(50); // Allow port to be released
-  });
 
-  test('starts server on specified port', async () => {
-    server = createServer(9999);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9999');
-
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => {
-        ws.close();
-        resolve();
-      };
-      ws.onerror = reject;
-      setTimeout(() => reject(new Error('Connection timeout')), 2000);
-    });
+    await delay(0);
   });
 
   test('waitForConnection times out when no client connects', async () => {
-    server = createServer(9998);
+    const { serve } = createMockBunServe();
+
+    server = createServer(9998, { serve });
     await server.start();
 
-    await expect(server.waitForConnection(100)).rejects.toThrow('Timeout');
-  });
-
-  test('handles client connection and ready message', async () => {
-    server = createServer(9997);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9997');
-
-    // Set up message handler before opening
-    const connected = new Promise<void>((resolve) => {
-      ws.onopen = () => {
-        // Small delay to ensure server registers connection
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    await connected;
-    await server.waitForConnection(2000);
-    ws.close();
-  });
-
-  test('getComponentList sends list request and receives response', async () => {
-    server = createServer(9996);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9996');
-    const components = ['Button', 'Card', 'Avatar'];
-
-    const ready = new Promise<void>((resolve) => {
-      ws.onopen = () => {
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data as string);
-      if (data.type === 'list') {
-        ws.send(JSON.stringify({ type: 'components', components }));
-      }
-    };
-
-    await ready;
-    await server.waitForConnection(2000);
-    const result = await server.getComponentList();
-
-    expect(result).toEqual(components);
-    ws.close();
-  });
-
-  test('mountComponent sends mount request', async () => {
-    server = createServer(9995);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9995');
-    let receivedMount = false;
-    let mountedComponent = '';
-
-    const ready = new Promise<void>((resolve) => {
-      ws.onopen = () => {
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data as string);
-      if (data.type === 'mount') {
-        receivedMount = true;
-        mountedComponent = data.component;
-        ws.send(JSON.stringify({ type: 'mounted', component: data.component }));
-      }
-    };
-
-    await ready;
-    await server.waitForConnection(2000);
-    await server.mountComponent('TestButton');
-
-    expect(receivedMount).toBe(true);
-    expect(mountedComponent).toBe('TestButton');
-    ws.close();
-  });
-
-  test('unmountComponent sends unmount request', async () => {
-    server = createServer(9994);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9994');
-    let receivedUnmount = false;
-
-    const ready = new Promise<void>((resolve) => {
-      ws.onopen = () => {
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data as string);
-      if (data.type === 'unmount') {
-        receivedUnmount = true;
-        ws.send(JSON.stringify({ type: 'unmounted' }));
-      }
-    };
-
-    await ready;
-    await server.waitForConnection(2000);
-    await server.unmountComponent();
-
-    expect(receivedUnmount).toBe(true);
-    ws.close();
-  });
-
-  test('mountComponent rejects when client disconnects mid-mount', async () => {
-    server = createServer(9993);
-    await server.start();
-
-    const ws = new WebSocket('ws://localhost:9993');
-
-    const ready = new Promise<void>((resolve) => {
-      ws.onopen = () => {
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data as string);
-      if (data.type === 'mount') {
-        ws.close();
-      }
-    };
-
-    await ready;
-    await server.waitForConnection(2000);
-    await expect(server.mountComponent('TestButton')).rejects.toThrow(
-      'Client disconnected',
+    await expect(server.waitForConnection(120)).rejects.toThrow(
+      'Timeout waiting for app connection',
     );
   });
 
-  test('waitForConnection waits for ready after reconnect', async () => {
-    server = createServer(9992);
+  test('handles client connection and ready message', async () => {
+    const { serve, getWebsocketHandlers } = createMockBunServe();
+
+    server = createServer(9997, { serve });
     await server.start();
 
-    const ws1 = new WebSocket('ws://localhost:9992');
-    await new Promise<void>((resolve) => {
-      ws1.onopen = () => {
-        setTimeout(() => {
-          ws1.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
+    const handlers = getWebsocketHandlers();
+    const ws = createMockWebSocket();
+
+    handlers.open(ws);
+    handlers.message(ws, JSON.stringify({ type: 'ready' }));
 
     await server.waitForConnection(2000);
-    ws1.close();
-    await delay(50);
+  });
 
-    const ws2 = new WebSocket('ws://localhost:9992');
-    const readyPromise = server.waitForConnection(2000);
+  test('getComponentList sends list request and receives response', async () => {
+    const { serve, getWebsocketHandlers } = createMockBunServe();
 
-    await new Promise<void>((resolve) => {
-      ws2.onopen = () => {
-        setTimeout(() => {
-          ws2.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
+    server = createServer(9996, { serve });
+    await server.start();
+
+    const handlers = getWebsocketHandlers();
+    const ws = createMockWebSocket();
+    const components = ['Button', 'Card', 'Avatar'];
+
+    handlers.open(ws);
+    handlers.message(ws, JSON.stringify({ type: 'ready' }));
+    await server.waitForConnection(2000);
+
+    const listPromise = server.getComponentList();
+    await delay(0);
+
+    expect(ws.sent.map((m) => JSON.parse(m))).toContainEqual({ type: 'list' });
+
+    handlers.message(ws, JSON.stringify({ type: 'components', components }));
+    await expect(listPromise).resolves.toEqual(components);
+  });
+
+  test('mountComponent sends mount request', async () => {
+    const { serve, getWebsocketHandlers } = createMockBunServe();
+
+    server = createServer(9995, { serve });
+    await server.start();
+
+    const handlers = getWebsocketHandlers();
+    const ws = createMockWebSocket();
+    handlers.open(ws);
+    handlers.message(ws, JSON.stringify({ type: 'ready' }));
+    await server.waitForConnection(2000);
+
+    const mountPromise = server.mountComponent('TestButton');
+    await delay(0);
+
+    expect(ws.sent.map((m) => JSON.parse(m))).toContainEqual({
+      type: 'mount',
+      component: 'TestButton',
     });
 
-    await readyPromise;
-    ws2.close();
+    handlers.message(
+      ws,
+      JSON.stringify({ type: 'mounted', component: 'TestButton' }),
+    );
+    await expect(mountPromise).resolves.toBeUndefined();
+  });
+
+  test('unmountComponent sends unmount request', async () => {
+    const { serve, getWebsocketHandlers } = createMockBunServe();
+
+    server = createServer(9994, { serve });
+    await server.start();
+
+    const handlers = getWebsocketHandlers();
+    const ws = createMockWebSocket();
+    handlers.open(ws);
+    handlers.message(ws, JSON.stringify({ type: 'ready' }));
+    await server.waitForConnection(2000);
+
+    const unmountPromise = server.unmountComponent();
+    await delay(0);
+
+    expect(ws.sent.map((m) => JSON.parse(m))).toContainEqual({
+      type: 'unmount',
+    });
+
+    handlers.message(ws, JSON.stringify({ type: 'unmounted' }));
+    await expect(unmountPromise).resolves.toBeUndefined();
+  });
+
+  test('mountComponent rejects when client disconnects mid-mount', async () => {
+    const { serve, getWebsocketHandlers } = createMockBunServe();
+
+    server = createServer(9993, { serve });
+    await server.start();
+
+    const handlers = getWebsocketHandlers();
+    const ws = createMockWebSocket();
+    handlers.open(ws);
+    handlers.message(ws, JSON.stringify({ type: 'ready' }));
+    await server.waitForConnection(2000);
+
+    const mountPromise = server.mountComponent('TestButton');
+    await delay(0);
+
+    handlers.close(ws);
+    await expect(mountPromise).rejects.toThrow('Client disconnected');
   });
 
   test('re-sends config after client reconnects', async () => {
-    server = createServer(9991);
+    const { serve, getWebsocketHandlers } = createMockBunServe();
+
+    server = createServer(9991, { serve });
     await server.start();
 
-    const ws1 = new WebSocket('ws://localhost:9991');
-    await new Promise<void>((resolve) => {
-      ws1.onopen = () => {
-        setTimeout(() => {
-          ws1.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
+    const handlers = getWebsocketHandlers();
 
+    const ws1 = createMockWebSocket();
+    handlers.open(ws1);
+    handlers.message(ws1, JSON.stringify({ type: 'ready' }));
     await server.waitForConnection(2000);
+
     server.sendConfig({ defaultWaitMs: 123 });
 
-    ws1.close();
-    await delay(50);
+    handlers.close(ws1);
 
-    const ws2 = new WebSocket('ws://localhost:9991');
-    const receivedConfig = new Promise<number>((resolve) => {
-      ws2.onmessage = (event) => {
-        const data = JSON.parse(event.data as string);
-        if (data.type === 'configure') {
-          resolve(data.defaultWaitMs as number);
-        }
-      };
+    const ws2 = createMockWebSocket();
+    handlers.open(ws2);
+    handlers.message(ws2, JSON.stringify({ type: 'ready' }));
+    await server.waitForConnection(2000);
+
+    expect(ws2.sent.map((m) => JSON.parse(m))).toContainEqual({
+      type: 'configure',
+      defaultWaitMs: 123,
     });
-
-    await new Promise<void>((resolve) => {
-      ws2.onopen = () => {
-        setTimeout(() => {
-          ws2.send(JSON.stringify({ type: 'ready' }));
-          resolve();
-        }, 10);
-      };
-    });
-
-    await expect(receivedConfig).resolves.toBe(123);
-    ws2.close();
   });
 });

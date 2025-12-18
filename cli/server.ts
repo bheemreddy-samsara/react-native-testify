@@ -34,13 +34,35 @@ interface TestifyServer {
   unmountComponent(): Promise<void>;
 }
 
-export function createServer(port: number): TestifyServer {
+type WebsocketHandler = {
+  open: (ws: unknown) => void;
+  message: (ws: unknown, message: unknown) => void;
+  close: (ws: unknown) => void;
+};
+
+type ServeOptions = {
+  port: number;
+  fetch: (
+    req: Request,
+    server: { upgrade: (req: Request) => boolean },
+  ) => Response | undefined;
+  websocket: WebsocketHandler;
+};
+
+type ServeFn = (options: ServeOptions) => { stop?: () => void };
+
+export function createServer(
+  port: number,
+  deps: { serve?: ServeFn } = {},
+): TestifyServer {
   let server: unknown = null;
   let connectedClient: unknown = null;
   let readyClient: unknown = null;
   let readyHandler: PendingReadyHandler | null = null;
   let lastConfig: AppConfig | null = null;
   const messageHandlers: Map<string, PendingMessageHandler> = new Map();
+
+  const serve: ServeFn = deps.serve ?? (Bun.serve as unknown as ServeFn);
 
   const waitForMessage = (
     type: string,
@@ -129,7 +151,7 @@ export function createServer(port: number): TestifyServer {
   return {
     async start() {
       // Use Bun's native WebSocket server
-      server = Bun.serve({
+      server = serve({
         port,
         fetch(req, server) {
           if (server.upgrade(req)) return;
@@ -198,12 +220,31 @@ export function createServer(port: number): TestifyServer {
     },
 
     stop() {
+      rejectReadyWait(new Error('Server stopped'));
+      rejectAllPendingMessages(new Error('Server stopped'));
+
+      if (
+        connectedClient &&
+        typeof (connectedClient as { close: () => void }).close === 'function'
+      ) {
+        try {
+          (connectedClient as { close: () => void }).close();
+        } catch {
+          // no-op
+        }
+      }
+
+      connectedClient = null;
+      readyClient = null;
+
       if (
         server &&
         typeof (server as { stop: () => void }).stop === 'function'
       ) {
         (server as { stop: () => void }).stop();
       }
+
+      server = null;
     },
 
     async waitForConnection(timeout: number) {

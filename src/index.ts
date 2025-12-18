@@ -1,5 +1,5 @@
 export { TestifyApp } from './TestifyApp';
-export type { IdleDetectionConfig } from './TestifyApp';
+export type { IdleDetectionConfig, StabilizersConfig } from './TestifyApp';
 export { IdleScreen } from './IdleScreen';
 export { createRegistry } from './registry';
 export { defineConfig } from './config';
@@ -31,3 +31,8 @@ export type {
   IdleDetectionConfig as ConnectionIdleConfig,
 } from './connection';
 export type { TestifyConnection, TestifyMessage } from './connection';
+
+export {
+  applyTextInputStabilizer,
+  type TextInputStabilizerConfig,
+} from './stabilizers/textInput';
