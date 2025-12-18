@@ -1,5 +1,11 @@
 # @samsara-dev/react-native-testify
 
+## 0.2.1
+
+### Patch Changes
+
+- de2a6dd: Add an opt-in TextInput stabilizer for visual tests (disable focus APIs and hide caret).
+
 ## 0.2.0
 
 ### Minor Changes
