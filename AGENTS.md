@@ -13,13 +13,13 @@ This repo uses a **hierarchical AGENTS.md** system.
 
 ## Root Setup Commands
 
+- Package manager: use the `packageManager` value from `package.json` (currently pnpm).
 - Install (CI style): `pnpm install --frozen-lockfile`
 - Build: `pnpm run build`
 - Lint: `pnpm run lint`
 - Format: `pnpm run format`
 - Typecheck: `pnpm run typecheck`
 - Test: `pnpm test`
-- Yarn is not supported in this repo (packageManager is pnpm).
 
 ## Universal Conventions
 
@@ -56,5 +56,6 @@ This repo uses a **hierarchical AGENTS.md** system.
 
 ## Definition of Done
 
+- Use the current package manager for lint/typecheck/format (i.e., when instructions say `yarn lint && yarn typecheck && yarn prettier:write`, translate to `<pm> run lint && <pm> run typecheck && <pm> run format`).
 - `pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build`
 - If you changed `example/`: `cd example && npm run lint && npm test`
