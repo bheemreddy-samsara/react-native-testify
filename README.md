@@ -2,7 +2,7 @@
 
 Component-level visual regression testing for React Native. Mount components in isolation, capture screenshots, and detect UI changes.
 
-> **Note:** This library requires [Bun](https://bun.sh) runtime for the CLI.
+> **Note:** The CLI runs on Node. Execute it via `npx`, `yarn dlx`, or `pnpm dlx`.
 
 ## Features
 
@@ -21,7 +21,7 @@ Component-level visual regression testing for React Native. Mount components in 
 flowchart TB
     subgraph Development
         A[Component Code] --> B[*.testify.tsx]
-        B --> |bunx testify discover| C[Generated Registry]
+        B --> |npx testify discover| C[Generated Registry]
     end
     
     subgraph Runtime
@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
 
 ## Requirements
 
-- [Bun](https://bun.sh) >= 1.0.0 (for CLI)
+- Node.js >= 24.12.0
 - React Native >= 0.65.0
 - Xcode (for iOS Simulator)
 - Android Studio (for Android Emulator)
@@ -56,7 +56,17 @@ https://github.com/user-attachments/assets/f794629e-62e1-406c-90e4-078fe586842a
 ## Installation
 
 ```bash
-bun add @samsara-dev/react-native-testify
+npm install @samsara-dev/react-native-testify
+yarn add @samsara-dev/react-native-testify
+pnpm add @samsara-dev/react-native-testify
+```
+
+You can run CLI commands with any package manager:
+
+```bash
+npx testify <command>
+yarn dlx testify <command>
+pnpm dlx testify <command>
 ```
 
 ## Quick Start
@@ -101,7 +111,7 @@ export default defineConfig({
 ### 3. Generate registry and create entry point
 
 ```bash
-bunx testify discover
+npx testify discover
 ```
 
 ```tsx
@@ -124,19 +134,19 @@ AppRegistry.registerComponent('YourApp', () => App);
 
 ```bash
 # Record baseline screenshots
-bunx testify record --ios
+npx testify record --ios
 
 # Run visual regression tests
-bunx testify test --ios
+npx testify test --ios
 
 # Run tests on Android
-bunx testify test --android
+npx testify test --android
 
 # Run parallel tests on iOS + Android simultaneously
-bunx testify test --all
+npx testify test --all
 
 # Update specific baselines
-bunx testify update Button_Primary --ios
+npx testify update Button_Primary --ios
 ```
 
 ## Auto-Discovery Mode
@@ -179,7 +189,7 @@ export default {
 ### 3. Generate registry
 
 ```bash
-bunx testify discover
+npx testify discover
 ```
 
 ### 4. Use generated registry with providers
@@ -365,15 +375,15 @@ idleDetection: {
 ## CLI Commands
 
 ```bash
-bunx testify init              # Initialize testify in project
-bunx testify build             # Build the app for testing
-bunx testify record --ios      # Record baseline screenshots
-bunx testify test --ios        # Run visual regression tests
-bunx testify test --android    # Test on Android
-bunx testify test --all        # Parallel iOS + Android
-bunx testify update <name>     # Update specific baseline
-bunx testify list              # List registered components
-bunx testify discover          # Discover *.testify.tsx files
+npx testify init              # Initialize testify in project
+npx testify build             # Build the app for testing
+npx testify record --ios      # Record baseline screenshots
+npx testify test --ios        # Run visual regression tests
+npx testify test --android    # Test on Android
+npx testify test --all        # Parallel iOS + Android
+npx testify update <name>     # Update specific baseline
+npx testify list              # List registered components
+npx testify discover          # Discover *.testify.tsx files
 
 # Options
 --ios                        # Target iOS simulator
@@ -392,7 +402,7 @@ bunx testify discover          # Discover *.testify.tsx files
 Run tests on both platforms simultaneously:
 
 ```bash
-bunx testify test --all
+npx testify test --all
 ```
 
 Output:

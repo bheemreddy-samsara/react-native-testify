@@ -10,28 +10,30 @@ mkdir -p "$DEPLOY_DIR" "$DERIVED_DATA_PATH"
 
 cd "$ROOT_DIR"
 
-if ! command -v bun >/dev/null 2>&1; then
-  curl -fsSL https://bun.sh/install | bash
-  export BUN_INSTALL="${BUN_INSTALL:-"$HOME/.bun"}"
-  export PATH="$BUN_INSTALL/bin:$PATH"
+if ! command -v corepack >/dev/null 2>&1; then
+  echo "Corepack is required for pnpm" >&2
+  exit 1
 fi
 
-echo "Bun: $(bun --version)"
+corepack enable
+corepack prepare pnpm@9.15.0 --activate
+
 echo "Node: $(node --version)"
 echo "npm: $(npm --version)"
+echo "pnpm: $(pnpm --version)"
 
 echo "Installing root dependencies..."
-bun install --frozen-lockfile
+pnpm install --frozen-lockfile
 
 echo "Building Testify package (for local example dependency)..."
-bun run build
+pnpm run build
 
 echo "Installing example dependencies..."
 pushd example >/dev/null
 npm ci --no-audit --no-fund
 
 echo "Generating testify registry..."
-bunx testify discover
+npx testify discover
 popd >/dev/null
 
 if ! command -v pod >/dev/null 2>&1; then
@@ -119,7 +121,7 @@ export TESTIFY_IOS_SIMULATOR_NAME="$SIMULATOR_NAME"
 
 echo "Recording baselines..."
 pushd example >/dev/null
-bunx testify record \
+npx testify record \
   --config testify.ci.config.ts \
   --ios \
   --filter "$TESTIFY_EXAMPLE_FILTER"
@@ -151,7 +153,7 @@ NODE
 
 echo "Running tests (generate report)..."
 set +e
-bunx testify test \
+npx testify test \
   --config testify.ci.config.ts \
   --ios \
   --filter "$TESTIFY_EXAMPLE_FILTER"

@@ -8,25 +8,26 @@ This repo uses a **hierarchical AGENTS.md** system.
 ## Project Snapshot
 
 - **Repo type:** single published npm package (`@samsara-dev/react-native-testify`) + embedded React Native example app (`example/`).
-- **Stack:** TypeScript, React Native, Bun (CLI + tests), Biome (lint/format), Changesets (release automation).
+- **Stack:** TypeScript, React Native, Node (CLI + tests), pnpm, Biome (lint/format), Changesets (release automation).
 - **Main areas:** library runtime (`src/`), CLI (`cli/`), unit tests (`tests/`), example app (`example/`).
 
 ## Root Setup Commands
 
-- Install (CI style): `bun install --frozen-lockfile`
-- Build: `bun run build`
-- Lint: `bun run lint`
-- Format: `bun run format`
-- Typecheck: `bun run typecheck`
-- Test: `bun test`
+- Package manager: use the `packageManager` value from `package.json` (currently pnpm).
+- Install (CI style): `pnpm install --frozen-lockfile`
+- Build: `pnpm run build`
+- Lint: `pnpm run lint`
+- Format: `pnpm run format`
+- Typecheck: `pnpm run typecheck`
+- Test: `pnpm test`
 
 ## Universal Conventions
 
 - **Formatting/lint:** Biome config lives in `biome.json` (single quotes + semicolons).
 - **TypeScript:** `strict: true` in `tsconfig.json`.
-- **Generated output:** don’t edit `dist/` by hand; update source and run `bun run build`.
+- **Generated output:** don’t edit `dist/` by hand; update source and run `pnpm run build`.
 - **Releases:** user-facing changes should add a Changeset (see `.changeset/config.json` + `.github/workflows/package-version.yml`).
-- **CI expectations:** workflows use Node 20.x + Bun 1.3.x (see `.github/workflows/*.yml`).
+- **CI expectations:** workflows use Node 24.12 + pnpm (see `.github/workflows/*.yml`).
 
 ## Security & Secrets
 
@@ -39,8 +40,8 @@ This repo uses a **hierarchical AGENTS.md** system.
 ### Directory Map
 
 - Library runtime (React Native): `src/` → see [`src/AGENTS.md`](src/AGENTS.md)
-- CLI (Bun): `cli/` → see [`cli/AGENTS.md`](cli/AGENTS.md)
-- Unit tests (bun:test): `tests/` → see [`tests/AGENTS.md`](tests/AGENTS.md)
+- CLI (Node): `cli/` → see [`cli/AGENTS.md`](cli/AGENTS.md)
+- Unit tests (Vitest): `tests/` → see [`tests/AGENTS.md`](tests/AGENTS.md)
 - Example app (React Native): `example/` → see [`example/AGENTS.md`](example/AGENTS.md)
 - CI / release automation: `.github/` → see [`.github/AGENTS.md`](.github/AGENTS.md)
 - Changesets config: `.changeset/` (Changesets parses all `.md` files here; keep docs elsewhere)
@@ -55,5 +56,6 @@ This repo uses a **hierarchical AGENTS.md** system.
 
 ## Definition of Done
 
-- `bun run lint && bun run typecheck && bun test && bun run build`
+- Use the current package manager for lint/typecheck/format (i.e., when instructions say `yarn lint && yarn typecheck && yarn prettier:write`, translate to `<pm> run lint && <pm> run typecheck && <pm> run format`).
+- `pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build`
 - If you changed `example/`: `cd example && npm run lint && npm test`

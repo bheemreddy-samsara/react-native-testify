@@ -2,27 +2,27 @@
 
 ## Package Identity
 
-- Unit tests for the library + CLI utilities using **Bun’s test runner** (`bun:test`).
+- Unit tests for the library + CLI utilities using **Vitest**.
 - Tests are intended to be fast + hermetic (no simulators/emulators).
 
 ## Setup & Run
 
-- Run all tests (repo root): `bun test`
-- Watch mode: `bun test --watch`
-- Run a single file: `bun test tests/discovery.test.ts`
+- Run all tests (repo root): `pnpm test`
+- Watch mode: `pnpm run test:watch`
+- Run a single file: `pnpm vitest run tests/discovery.test.ts`
 
 ## Patterns & Conventions
 
 ### Test runner + structure
 
-- Use `import { describe, expect, test } from 'bun:test'` (see `tests/registry.test.ts`).
+- Use `import { describe, expect, test } from 'vitest'` (see `tests/registry.test.ts`).
 - Prefer small, focused test files under `tests/*.test.ts`.
 
 ### Temp files + cleanup
 
 - ✅ DO: use temporary directories and clean up.
   - Example (OS temp dir): `tests/discovery.test.ts` uses `fs.mkdtempSync(path.join(os.tmpdir(), ...))`.
-  - Example (test-local dir): `tests/compare.test.ts` writes to `path.join(import.meta.dir, '.test-images')` and deletes in `afterAll`.
+  - Example (test-local dir): `tests/compare.test.ts` uses `fileURLToPath(import.meta.url)` and deletes in `afterAll`.
 - ❌ DON'T: write test artifacts into the repo root (use the patterns in `tests/discovery.test.ts` and `tests/compare.test.ts`).
 
 ### Keep tests simulator-free
@@ -33,7 +33,7 @@
 
 ### Don’t mix test frameworks
 
-- This folder is `bun:test`.
+- This folder is `vitest`.
 - Jest is used only by the example app (see `example/jest.config.js`).
 
 ## Touch Points / Key Files
@@ -51,9 +51,9 @@
 
 ## Common Gotchas
 
-- Use `import.meta.dir` instead of `__dirname` (see `tests/compare.test.ts`).
+- Use `fileURLToPath(import.meta.url)` instead of `__dirname` (see `tests/compare.test.ts`).
 - Keep tests deterministic; avoid timers unless you control them.
 
 ## Pre-PR Checks
 
-`bun test`
+`pnpm test`

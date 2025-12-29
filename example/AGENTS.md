@@ -34,7 +34,7 @@ This example uses auto-discovery as the primary pattern:
 1. **Component variants** are defined in colocated `*.testify.tsx` files
    - Examples: `example/src/components/Button.testify.tsx`, `example/src/screens/ProfileScreen.testify.tsx`
 
-2. **Registry is auto-generated** by running `bunx testify discover`
+2. **Registry is auto-generated** by running `npx testify discover`
    - Output: `example/testify/.generated-registry.tsx`
 
 3. **Providers/wrapper** are defined in the entry file
@@ -43,18 +43,18 @@ This example uses auto-discovery as the primary pattern:
 Workflow:
 ```bash
 # After adding/modifying *.testify.tsx files
-cd example && bunx testify discover
+cd example && npx testify discover
 
 # Record baselines
-bunx testify record --ios
+npx testify record --ios
 
 # Run tests
-bunx testify test --ios
+npx testify test --ios
 ```
 
 ✅ DO:
 - Define component variants in colocated `*.testify.tsx` files
-- Run `bunx testify discover` after adding new testify files
+- Run `npx testify discover` after adding new testify files
 - Define providers/wrapper in `index.testify.js`
 
 ❌ DON'T:
@@ -84,10 +84,10 @@ bunx testify test --ios
 
 ## Common Gotchas
 
-- The example app uses npm + `package-lock.json` (don't run `bun install` inside `example/`).
+- The example app uses npm + `package-lock.json` (don't run `pnpm install` inside `example/`).
 - Root Biome config ignores `example/`, so use `npm run lint` for example-only changes.
 - iOS requires CocoaPods (`cd example/ios && pod install`) when dependencies change.
-- Always run `bunx testify discover` after adding new `*.testify.tsx` files.
+- Always run `npx testify discover` after adding new `*.testify.tsx` files.
 
 ## Pre-PR Checks
 

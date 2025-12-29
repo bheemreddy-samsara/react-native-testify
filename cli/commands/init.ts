@@ -123,8 +123,8 @@ export async function runInit() {
 Setup complete! Next steps:
 
 1. Add your components to testify/registry.tsx
-2. Run: bunx testify record --ios
-3. Run: bunx testify test --ios
+2. Run: npx testify record --ios
+3. Run: npx testify test --ios
 
 For git-lfs support (recommended for baselines):
   git lfs install

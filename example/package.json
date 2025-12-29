@@ -9,8 +9,8 @@
     "start": "react-native start",
     "start:testify": "react-native start --reset-cache --port 8081",
     "test": "jest --passWithNoTests",
-    "testify:record": "bunx testify record --ios",
-    "testify:test": "bunx testify test --ios"
+    "testify:record": "npx testify record --ios",
+    "testify:test": "npx testify test --ios"
   },
   "dependencies": {
     "react": "19.2.0",
@@ -40,6 +40,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24.12.0"
   }
 }

@@ -51,27 +51,27 @@ cd ios && pod install && cd ..
 ### 2. Generate registry (required after clone)
 
 ```bash
-bunx testify discover
+npx testify discover
 ```
 
 ### 3. Record baselines
 
 ```bash
 # Record all components
-bunx testify record --ios
+npx testify record --ios
 
 # Record specific components
-bunx testify record --ios --filter "Button/*"
+npx testify record --ios --filter "Button/*"
 ```
 
 ### 4. Run tests
 
 ```bash
 # Test all components
-bunx testify test --ios
+npx testify test --ios
 
 # Test specific components
-bunx testify test --ios --filter "Screen/Profile/*"
+npx testify test --ios --filter "Screen/Profile/*"
 ```
 
 ### 5. View report
@@ -99,7 +99,7 @@ export default {
 ### 2. Regenerate registry
 
 ```bash
-bunx testify discover
+npx testify discover
 ```
 
 This updates `testify/.generated-registry.tsx` with all discovered components.
@@ -204,10 +204,10 @@ export default defineConfig({
 
 | Command | Description |
 |---------|-------------|
-| `bunx testify record --ios` | Record baseline screenshots |
-| `bunx testify test --ios` | Run visual regression tests |
-| `bunx testify discover` | Discover and generate registry |
-| `bunx testify discover --dry-run` | Preview discovery without writing |
+| `npx testify record --ios` | Record baseline screenshots |
+| `npx testify test --ios` | Run visual regression tests |
+| `npx testify discover` | Discover and generate registry |
+| `npx testify discover --dry-run` | Preview discovery without writing |
 
 ### Filtering
 

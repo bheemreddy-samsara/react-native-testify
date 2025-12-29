@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createJiti } from 'jiti';
 import { z } from 'zod';
 
 const ViewportSchema = z.object({
@@ -87,6 +88,7 @@ export type IdleDetectionConfig = z.infer<typeof IdleDetectionConfigSchema>;
 export type DiscoveryConfig = z.infer<typeof DiscoveryConfigSchema>;
 
 export function loadConfig(configPath?: string): TestifyConfig {
+  const jiti = createJiti(__filename, { interopDefault: true });
   const searchPaths = configPath
     ? [configPath]
     : [
@@ -107,8 +109,8 @@ export function loadConfig(configPath?: string): TestifyConfig {
           const content = fs.readFileSync(fullPath, 'utf-8');
           userConfig = JSON.parse(content);
         } else {
-          // For .ts/.js files, use require (bun handles TS natively)
-          userConfig = require(fullPath);
+          // For .ts/.js files, use jiti to support TS/ESM in Node.
+          userConfig = jiti(fullPath);
           // Handle default exports
           if (
             userConfig &&
