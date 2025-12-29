@@ -1,8 +1,14 @@
+import {
+  type IncomingMessage,
+  createServer as createHttpServer,
+} from 'node:http';
+import { WebSocketServer } from 'ws';
+
 type Platform = 'ios' | 'android';
 
 interface Client {
   id: string;
-  ws: unknown;
+  ws: WebSocketLike;
   platform: Platform;
   isReady: boolean;
   messageHandlers: Map<string, (data: Record<string, unknown>) => void>;
@@ -35,11 +41,60 @@ interface ParallelServer {
   getComponentList(): Promise<string[]>;
 }
 
-export function createParallelServer(port: number): ParallelServer {
-  let server: unknown = null;
+type WebSocketLike = {
+  send: (msg: string) => void;
+  on: (event: 'message' | 'close', listener: (data?: unknown) => void) => void;
+};
+
+type WebSocketServerController = {
+  start: (port: number) => void;
+  stop: () => void;
+};
+
+type WebSocketServerFactory = (handlers: {
+  onConnection: (ws: WebSocketLike, req?: IncomingMessage) => void;
+}) => WebSocketServerController;
+
+function createDefaultWebSocketServer({
+  onConnection,
+}: {
+  onConnection: (ws: WebSocketLike, req?: IncomingMessage) => void;
+}): WebSocketServerController {
+  let httpServer: ReturnType<typeof createHttpServer> | null = null;
+  let websocketServer: WebSocketServer | null = null;
+
+  return {
+    start(port) {
+      httpServer = createHttpServer((_, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Testify Parallel Server');
+      });
+
+      websocketServer = new WebSocketServer({ server: httpServer });
+      websocketServer.on('connection', (ws, req) => {
+        onConnection(ws, req);
+      });
+
+      httpServer.listen(port);
+    },
+    stop() {
+      websocketServer?.close();
+      httpServer?.close();
+    },
+  };
+}
+
+export function createParallelServer(
+  port: number,
+  deps: { createWebSocketServer?: WebSocketServerFactory } = {},
+): ParallelServer {
+  let websocketServer: WebSocketServerController | null = null;
   const clients: Map<Platform, Client> = new Map();
   const pendingReady: Map<Platform, () => void> = new Map();
   let lastConfig: AppConfig | null = null;
+
+  const createWebSocketServer =
+    deps.createWebSocketServer ?? createDefaultWebSocketServer;
 
   const waitForMessage = (
     client: Client,
@@ -63,9 +118,8 @@ export function createParallelServer(port: number): ParallelServer {
   };
 
   const sendToClient = (client: Client, data: Record<string, unknown>) => {
-    const ws = client.ws as { send: (msg: string) => void };
-    if (ws && typeof ws.send === 'function') {
-      ws.send(JSON.stringify(data));
+    if (client.ws && typeof client.ws.send === 'function') {
+      client.ws.send(JSON.stringify(data));
     }
   };
 
@@ -100,7 +154,6 @@ export function createParallelServer(port: number): ParallelServer {
         resolver();
         pendingReady.delete(client.platform);
       }
-      // Check for platform info
       if (data.platform) {
         client.platform = data.platform as Platform;
       }
@@ -115,56 +168,45 @@ export function createParallelServer(port: number): ParallelServer {
 
   return {
     async start() {
-      server = Bun.serve<{ platform: Platform }>({
-        port,
-        fetch(req, srv) {
-          // Extract platform from query string if provided
-          const url = new URL(req.url);
+      websocketServer = createWebSocketServer({
+        onConnection(ws, req) {
+          const url = new URL(req?.url ?? '/', `http://localhost:${port}`);
           const platform =
             (url.searchParams.get('platform') as Platform) || 'ios';
 
-          if (srv.upgrade(req, { data: { platform } })) return;
-          return new Response('Testify Parallel Server', { status: 200 });
-        },
-        websocket: {
-          open(ws) {
-            const platform = ws.data?.platform || 'ios';
-            const client: Client = {
-              id: `${platform}-${Date.now()}`,
-              ws,
-              platform,
-              isReady: false,
-              messageHandlers: new Map(),
-            };
+          const client: Client = {
+            id: `${platform}-${Date.now()}`,
+            ws,
+            platform,
+            isReady: false,
+            messageHandlers: new Map(),
+          };
 
-            // Remove existing client for this platform
-            clients.delete(platform);
-            clients.set(platform, client);
+          clients.delete(platform);
+          clients.set(platform, client);
 
-            console.log(`[Server] ${platform} client connected`);
-          },
-          message(ws, message) {
-            const platform = ws.data?.platform || 'ios';
-            const client = clients.get(platform);
-            if (!client) return;
+          console.log(`[Server] ${platform} client connected`);
 
+          ws.on('message', (message) => {
             try {
-              const data = JSON.parse(String(message)) as Record<
+              const parsed = JSON.parse(String(message)) as Record<
                 string,
                 unknown
               >;
-              handleMessage(client, data);
+              handleMessage(client, parsed);
             } catch (e) {
               console.error('[Server] Invalid message:', e);
             }
-          },
-          close(ws) {
-            const platform = ws.data?.platform || 'ios';
+          });
+
+          ws.on('close', () => {
             console.log(`[Server] ${platform} client disconnected`);
             clients.delete(platform);
-          },
+          });
         },
       });
+
+      websocketServer.start(port);
 
       console.log(
         `[Server] Parallel server listening on ws://localhost:${port}`,
@@ -172,19 +214,14 @@ export function createParallelServer(port: number): ParallelServer {
     },
 
     stop() {
-      if (
-        server &&
-        typeof (server as { stop: () => void }).stop === 'function'
-      ) {
-        (server as { stop: () => void }).stop();
-      }
+      websocketServer?.stop();
+      websocketServer = null;
       clients.clear();
     },
 
     async waitForClients(platforms: Platform[], timeout: number) {
       const start = Date.now();
 
-      // Wait for all requested platforms to connect
       while (platforms.some((p) => !clients.has(p))) {
         if (Date.now() - start > timeout) {
           const missing = platforms.filter((p) => !clients.has(p));
@@ -193,18 +230,21 @@ export function createParallelServer(port: number): ParallelServer {
         await new Promise((r) => setTimeout(r, 100));
       }
 
-      // Wait for all to be ready
       const readyPromises = platforms.map((platform) => {
         const client = clients.get(platform);
         if (!client) {
           return Promise.reject(new Error(`Client for ${platform} not found`));
         }
-        if (client.isReady) return Promise.resolve();
+
+        if (client.isReady) {
+          return Promise.resolve();
+        }
 
         return new Promise<void>((resolve, reject) => {
           const timer = setTimeout(() => {
+            pendingReady.delete(platform);
             reject(new Error(`Timeout waiting for ${platform} ready`));
-          }, 10000);
+          }, timeout);
 
           pendingReady.set(platform, () => {
             clearTimeout(timer);
@@ -214,11 +254,11 @@ export function createParallelServer(port: number): ParallelServer {
       });
 
       await Promise.all(readyPromises);
-      console.log(`[Server] All clients ready: ${platforms.join(', ')}`);
     },
 
     sendConfigToAll(config: AppConfig) {
       lastConfig = config;
+
       for (const client of clients.values()) {
         sendToClient(client, { type: 'configure', ...config });
       }
@@ -229,50 +269,47 @@ export function createParallelServer(port: number): ParallelServer {
     },
 
     async mountComponentOnAll(name: string) {
-      const promises = Array.from(clients.entries()).map(
-        async ([platform, client]) => {
-          sendToClient(client, { type: 'mount', component: name });
-          await waitForMessage(client, 'mounted', getMountTimeoutMs());
-          console.log(`  [${platform}] Mounted: ${name}`);
-        },
-      );
-
+      const timeout = getMountTimeoutMs();
+      const promises = Array.from(clients.values()).map((client) => {
+        sendToClient(client, { type: 'mount', component: name });
+        return waitForMessage(client, 'mounted', timeout);
+      });
       await Promise.all(promises);
     },
 
     async mountComponent(platform: Platform, name: string) {
       const client = clients.get(platform);
-      if (!client) throw new Error(`No client for platform: ${platform}`);
+      if (!client) throw new Error(`Client for ${platform} not connected`);
 
+      const timeout = getMountTimeoutMs();
       sendToClient(client, { type: 'mount', component: name });
-      await waitForMessage(client, 'mounted', getMountTimeoutMs());
+      await waitForMessage(client, 'mounted', timeout);
     },
 
     async unmountComponentOnAll() {
-      const promises = Array.from(clients.values()).map(async (client) => {
+      const promises = Array.from(clients.values()).map((client) => {
         sendToClient(client, { type: 'unmount' });
-        await waitForMessage(client, 'unmounted');
+        return waitForMessage(client, 'unmounted');
       });
-
       await Promise.all(promises);
     },
 
     async unmountComponent(platform: Platform) {
       const client = clients.get(platform);
-      if (!client) throw new Error(`No client for platform: ${platform}`);
+      if (!client) throw new Error(`Client for ${platform} not connected`);
 
       sendToClient(client, { type: 'unmount' });
       await waitForMessage(client, 'unmounted');
     },
 
-    async getComponentList(): Promise<string[]> {
-      // Get from first connected client
-      const client = clients.values().next().value;
-      if (!client) throw new Error('No clients connected');
+    async getComponentList() {
+      const client = clients.get('ios') ?? Array.from(clients.values())[0];
+      if (!client) return [];
 
       sendToClient(client, { type: 'list' });
       const response = await waitForMessage(client, 'components');
-      return (response.components as string[]) || [];
+      const components = response.components as string[] | undefined;
+      return components ?? [];
     },
   };
 }

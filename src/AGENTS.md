@@ -7,12 +7,12 @@
 
 ## Setup & Run
 
-- Install (from repo root): `bun install --frozen-lockfile`
-- Lint: `bun run lint`
-- Format: `bun run format`
-- Typecheck: `bun run typecheck`
-- Unit tests: `bun test`
-- Build package (generates `dist/`): `bun run build`
+- Install (from repo root): `pnpm install --frozen-lockfile`
+- Lint: `pnpm run lint`
+- Format: `pnpm run format`
+- Typecheck: `pnpm run typecheck`
+- Unit tests: `pnpm test`
+- Build package (generates `dist/`): `pnpm run build`
 
 ## Patterns & Conventions
 
@@ -83,4 +83,4 @@ Communication contract:
 
 ## Pre-PR Checks
 
-`bun run lint && bun run typecheck && bun test && bun run build`
+`pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build`

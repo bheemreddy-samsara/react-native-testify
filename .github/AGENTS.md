@@ -6,20 +6,20 @@
 
 ## Setup & Run
 
-- CI uses Node 20.x + Bun 1.3.x.
+- CI uses Node 24.12 + pnpm.
 - Primary workflows live in `.github/workflows/*.yml`.
 
 ## Patterns & Conventions
 
-### Bun + Node versions
+### Node + pnpm versions
 
-- ✅ DO: keep Node/Bun versions consistent across workflows.
+- ✅ DO: keep Node/pnpm versions consistent across workflows.
   - Examples: `.github/workflows/build.yml`, `.github/workflows/test.yml`.
 
 ### Dependency install strategy
 
-- Root package uses Bun:
-  - `bun install --frozen-lockfile`
+- Root package uses pnpm:
+  - `pnpm install --frozen-lockfile`
 - Example app uses npm:
   - `working-directory: example`
   - `npm ci --no-audit --no-fund`
@@ -51,7 +51,7 @@
 ## JIT Index Hints
 
 - List workflows: `ls -la .github/workflows`
-- Find Node/Bun versions: `rg -n "node-version:|bun-version:" .github/workflows`
+- Find Node/pnpm versions: `rg -n "node-version:|pnpm" .github/workflows`
 - Find secrets usage: `rg -n "secrets\." .github/workflows`
 
 ## Common Gotchas

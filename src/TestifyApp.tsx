@@ -89,7 +89,9 @@ export function TestifyApp({
     'connecting' | 'connected' | 'disconnected'
   >('connecting');
   const connectionRef = useRef(createConnection(port, detectedPlatform));
-  const messageHandlerRef = useRef<(message: TestifyMessage) => void>();
+  const messageHandlerRef = useRef<((message: TestifyMessage) => void) | null>(
+    null,
+  );
 
   const handleMount = useCallback(
     async (componentName: string) => {

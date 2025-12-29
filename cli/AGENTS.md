@@ -2,18 +2,18 @@
 
 ## Package Identity
 
-- Bun-powered CLI (bin name: `testify`) that drives a running React Native harness to:
+- Node-powered CLI (bin name: `testify`) that drives a running React Native harness to:
   - record baseline screenshots
   - run visual diffs + generate an HTML report
   - discover `*.testify.tsx` files and generate a registry
 
 ## Setup & Run
 
-- Dev (watch CLI entry): `bun run dev`
-- Build (generates `dist/cli/index.js`): `bun run build`
-- Lint/format/typecheck: `bun run lint && bun run format && bun run typecheck`
-- Unit tests (no simulator/emulator required): `bun test`
-- Run locally without install: `bun ./cli/index.ts --help`
+- Dev (watch CLI entry): `pnpm run dev`
+- Build (generates `dist/cli/index.js`): `pnpm run build`
+- Lint/format/typecheck: `pnpm run lint && pnpm run format && pnpm run typecheck`
+- Unit tests (no simulator/emulator required): `pnpm test`
+- Run locally without install: `pnpm run dev -- --help`
 
 ## Patterns & Conventions
 
@@ -38,11 +38,11 @@ Examples:
 
 Gotcha:
 
-- `loadConfig` uses `require()` so `.ts` configs work under Bun. Avoid Node-only guidance here.
+- `loadConfig` uses `jiti` so `.ts` configs work under Node.
 
 ### WebSocket server protocol
 
-- `cli/server.ts` runs a Bun WebSocket server and waits for:
+- `cli/server.ts` runs a Node WebSocket server and waits for:
   - a client connection
   - a `ready` message before running mount/list cycles
 
@@ -95,4 +95,4 @@ Guidelines:
 
 ## Pre-PR Checks
 
-`bun run lint && bun run typecheck && bun test && bun run build`
+`pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build`

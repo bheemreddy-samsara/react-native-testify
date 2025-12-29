@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test';
 import type { ReactElement, ReactNode } from 'react';
+import { describe, expect, test } from 'vitest';
 import { createRegistry } from '../src/registry';
 
 const mockRenderer = (): ReactElement => null as unknown as ReactElement;

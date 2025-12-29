@@ -1,10 +1,14 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { compareImages } from '../cli/compare';
 
-const TEST_DIR = path.join(import.meta.dir, '.test-images');
+const TEST_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '.test-images',
+);
 
 function createTestImage(
   width: number,

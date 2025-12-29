@@ -1,3 +1,9 @@
+import {
+  type IncomingMessage,
+  createServer as createHttpServer,
+} from 'node:http';
+import { WebSocketServer } from 'ws';
+
 export interface IdleDetectionConfig {
   enabled: boolean;
   timeoutMs: number;
@@ -34,35 +40,62 @@ interface TestifyServer {
   unmountComponent(): Promise<void>;
 }
 
-type WebsocketHandler = {
-  open: (ws: unknown) => void;
-  message: (ws: unknown, message: unknown) => void;
-  close: (ws: unknown) => void;
+type WebSocketLike = {
+  send: (msg: string) => void;
+  on: (event: 'message' | 'close', listener: (data?: unknown) => void) => void;
 };
 
-type ServeOptions = {
-  port: number;
-  fetch: (
-    req: Request,
-    server: { upgrade: (req: Request) => boolean },
-  ) => Response | undefined;
-  websocket: WebsocketHandler;
+type WebSocketServerController = {
+  start: (port: number) => void;
+  stop: () => void;
 };
 
-type ServeFn = (options: ServeOptions) => { stop?: () => void };
+type WebSocketServerFactory = (handlers: {
+  onConnection: (ws: WebSocketLike, req?: IncomingMessage) => void;
+}) => WebSocketServerController;
+
+function createDefaultWebSocketServer({
+  onConnection,
+}: {
+  onConnection: (ws: WebSocketLike, req?: IncomingMessage) => void;
+}): WebSocketServerController {
+  let httpServer: ReturnType<typeof createHttpServer> | null = null;
+  let websocketServer: WebSocketServer | null = null;
+
+  return {
+    start(port) {
+      httpServer = createHttpServer((_, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('WebSocket server');
+      });
+
+      websocketServer = new WebSocketServer({ server: httpServer });
+      websocketServer.on('connection', (ws, req) => {
+        onConnection(ws, req);
+      });
+
+      httpServer.listen(port);
+    },
+    stop() {
+      websocketServer?.close();
+      httpServer?.close();
+    },
+  };
+}
 
 export function createServer(
   port: number,
-  deps: { serve?: ServeFn } = {},
+  deps: { createWebSocketServer?: WebSocketServerFactory } = {},
 ): TestifyServer {
-  let server: unknown = null;
-  let connectedClient: unknown = null;
-  let readyClient: unknown = null;
+  let websocketServer: WebSocketServerController | null = null;
+  let connectedClient: WebSocketLike | null = null;
+  let readyClient: WebSocketLike | null = null;
   let readyHandler: PendingReadyHandler | null = null;
   let lastConfig: AppConfig | null = null;
   const messageHandlers: Map<string, PendingMessageHandler> = new Map();
 
-  const serve: ServeFn = deps.serve ?? (Bun.serve as unknown as ServeFn);
+  const createWebSocketServer =
+    deps.createWebSocketServer ?? createDefaultWebSocketServer;
 
   const waitForMessage = (
     type: string,
@@ -99,16 +132,11 @@ export function createServer(
       throw new Error('No app connected');
     }
 
-    if (
-      typeof (connectedClient as { send: (msg: string) => void }).send !==
-      'function'
-    ) {
+    if (typeof connectedClient.send !== 'function') {
       throw new Error('Invalid WebSocket client');
     }
 
-    (connectedClient as { send: (msg: string) => void }).send(
-      JSON.stringify(data),
-    );
+    connectedClient.send(JSON.stringify(data));
   };
 
   const rejectAllPendingMessages = (error: Error) => {
@@ -148,149 +176,107 @@ export function createServer(
     return timeout;
   };
 
+  const handleMessage = (ws: WebSocketLike, message: unknown) => {
+    try {
+      const data = JSON.parse(String(message)) as Record<string, unknown>;
+
+      if (data.type === 'ready') {
+        if (ws !== connectedClient) return;
+
+        readyClient = ws;
+
+        if (lastConfig) {
+          try {
+            sendToClient({ type: 'configure', ...lastConfig });
+          } catch {
+            // no-op
+          }
+        }
+
+        if (readyHandler) {
+          clearTimeout(readyHandler.timer);
+          readyHandler.resolve();
+          readyHandler = null;
+        }
+        return;
+      }
+
+      const handler = messageHandlers.get(data.type as string);
+      if (handler) handler.resolve(data);
+    } catch (e) {
+      console.error('[Server] Invalid message:', e);
+    }
+  };
+
+  const handleClose = (ws: WebSocketLike) => {
+    console.log('[Server] Client disconnected');
+    if (ws === connectedClient) {
+      connectedClient = null;
+      readyClient = null;
+      rejectReadyWait(new Error('Client disconnected'));
+      rejectAllPendingMessages(new Error('Client disconnected'));
+    }
+  };
+
   return {
     async start() {
-      // Use Bun's native WebSocket server
-      server = serve({
-        port,
-        fetch(req, server) {
-          if (server.upgrade(req)) return;
-          return new Response('WebSocket server', { status: 200 });
-        },
-        websocket: {
-          open(ws) {
-            console.log('[Server] Client connected');
+      websocketServer = createWebSocketServer({
+        onConnection(ws) {
+          console.log('[Server] Client connected');
 
-            if (connectedClient && ws !== connectedClient) {
-              rejectReadyWait(new Error('Client replaced'));
-              rejectAllPendingMessages(new Error('Client replaced'));
-            }
+          if (connectedClient && ws !== connectedClient) {
+            rejectReadyWait(new Error('Client replaced'));
+            rejectAllPendingMessages(new Error('Client replaced'));
+          }
 
-            connectedClient = ws;
-            readyClient = null;
-          },
-          message(ws, message) {
-            try {
-              const data = JSON.parse(String(message)) as Record<
-                string,
-                unknown
-              >;
+          connectedClient = ws;
+          readyClient = null;
 
-              // Handle "ready" message specially to avoid race condition
-              if (data.type === 'ready') {
-                if (ws !== connectedClient) return;
-
-                readyClient = ws;
-
-                if (lastConfig) {
-                  try {
-                    sendToClient({ type: 'configure', ...lastConfig });
-                  } catch {
-                    // no-op
-                  }
-                }
-
-                if (readyHandler) {
-                  clearTimeout(readyHandler.timer);
-                  readyHandler.resolve();
-                  readyHandler = null;
-                }
-                return;
-              }
-
-              const handler = messageHandlers.get(data.type as string);
-              if (handler) handler.resolve(data);
-            } catch (e) {
-              console.error('[Server] Invalid message:', e);
-            }
-          },
-          close(ws) {
-            console.log('[Server] Client disconnected');
-            if (ws === connectedClient) {
-              connectedClient = null;
-              readyClient = null;
-              rejectReadyWait(new Error('Client disconnected'));
-              rejectAllPendingMessages(new Error('Client disconnected'));
-            }
-          },
+          ws.on('message', (message) => handleMessage(ws, message));
+          ws.on('close', () => handleClose(ws));
         },
       });
+
+      websocketServer.start(port);
 
       console.log(`[Server] Listening on ws://localhost:${port}`);
     },
 
     stop() {
-      rejectReadyWait(new Error('Server stopped'));
-      rejectAllPendingMessages(new Error('Server stopped'));
-
-      if (
-        connectedClient &&
-        typeof (connectedClient as { close: () => void }).close === 'function'
-      ) {
-        try {
-          (connectedClient as { close: () => void }).close();
-        } catch {
-          // no-op
-        }
-      }
-
+      websocketServer?.stop();
+      websocketServer = null;
       connectedClient = null;
       readyClient = null;
-
-      if (
-        server &&
-        typeof (server as { stop: () => void }).stop === 'function'
-      ) {
-        (server as { stop: () => void }).stop();
-      }
-
-      server = null;
+      rejectReadyWait(new Error('Server stopped'));
+      rejectAllPendingMessages(new Error('Server stopped'));
     },
 
     async waitForConnection(timeout: number) {
-      const start = Date.now();
-      while (!connectedClient) {
-        if (Date.now() - start > timeout) {
-          throw new Error('Timeout waiting for app connection');
-        }
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      if (readyClient) return;
 
-      // If already received ready message for this connection, return immediately
-      if (readyClient && readyClient === connectedClient) {
-        return;
-      }
-
-      // Otherwise wait for ready message
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          reject(new Error('Timeout waiting for ready message'));
-        }, 10000);
-
+      return new Promise((resolve, reject) => {
         readyHandler = {
           resolve: () => {
-            clearTimeout(timer);
+            readyHandler = null;
             resolve();
           },
           reject: (error) => {
-            clearTimeout(timer);
+            readyHandler = null;
             reject(error);
           },
-          timer,
+          timer: setTimeout(() => {
+            readyHandler?.reject(
+              new Error('Timeout waiting for app connection'),
+            );
+          }, timeout),
         };
-
-        if (readyClient && readyClient === connectedClient) {
-          clearTimeout(timer);
-          readyHandler = null;
-          resolve();
-        }
       });
     },
 
     sendConfig(config: AppConfig) {
       lastConfig = config;
+      if (!readyClient) return;
 
-      // If the app reconnects, it will be reconfigured on the next ready message.
       try {
         sendToClient({ type: 'configure', ...config });
       } catch {
@@ -298,15 +284,17 @@ export function createServer(
       }
     },
 
-    async getComponentList(): Promise<string[]> {
+    async getComponentList() {
       sendToClient({ type: 'list' });
       const response = await waitForMessage('components');
-      return (response.components as string[]) || [];
+      const components = response.components as string[] | undefined;
+      return components ?? [];
     },
 
     async mountComponent(name: string) {
+      const timeout = getMountTimeoutMs();
       sendToClient({ type: 'mount', component: name });
-      await waitForMessage('mounted', getMountTimeoutMs());
+      await waitForMessage('mounted', timeout);
     },
 
     async unmountComponent() {
