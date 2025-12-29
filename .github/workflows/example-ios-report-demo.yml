@@ -203,8 +203,8 @@ jobs:
           {
             echo "### Testify example report"
             echo ""
-            echo "- Artifact: `testify-example-ios-report`"
-            echo "- Report: `example/testify/baselines/testify-report.html`"
+            echo "- Artifact: testify-example-ios-report"
+            echo "- Report: example/testify/baselines/testify-report.html"
             echo "- Note: This workflow intentionally mutates one baseline to showcase a failing diff."
             echo ""
             if [[ -f example/testify/baselines/testify-report.html ]]; then
